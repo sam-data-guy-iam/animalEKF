@@ -1,0 +1,13 @@
+Package: animalEKF
+Type: Package
+Title: Simulation and Estimation of EKFs for Animal Movement
+Version: 1.0
+Date: 2020-04-03
+Author: Samuel Ackerman
+Maintainer: Samuel Ackerman <smackrmn@gmail.com>
+Description: Synthetic generation of correlated random walks (CRWs) for animal movement with behavioral
+ switching, and particle filter estimation of movement parameters from observed trajectories using extended Kalman Filter (EKF) model.
+Depends: R (>= 3.3.0), shiny, maptools, sp, rgeos (>= 0.5.2)
+License: GPL (>= 2)
+Imports: MCMCpack, ellipse, mvtnorm, deldir, colorspace, Matrix, MASS, png, grDevices, bezier,
+ HDInterval, plyr, stats, methods, utils, ggplot2, rgdal
