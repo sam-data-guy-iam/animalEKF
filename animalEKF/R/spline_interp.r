@@ -1,5 +1,12 @@
-spline_interp <- function(di, area_map=NULL, reg_dt=120, max_dt_wo_obs=60*30, maxStep=NULL, centroids, nstates=2, spline_deg=3, split_logv=-3) {
+spline_interp <- function(di, area_map=NULL, t_reg=NULL, reg_dt=120, max_dt_wo_obs=60*30,
+					maxStep=NULL, centroids=matrix(c(0,0), ncol=2), nstates=2, spline_deg=3, split_logv=-3) {
 	
+	obs_date_range <- range(di$date_as_sec, na.rm=TRUE)
+	obs_date_span <- diff(obs_date_range)
+	if (obs_date_span == 0) {
+		stop("The observed date range contains only one value.  It needs at least two unique times")
+	}
+
 	
 	if (!("tag" %in% colnames(di))) {  
 		print("assuming all observations are for one animal")
@@ -19,7 +26,44 @@ spline_interp <- function(di, area_map=NULL, reg_dt=120, max_dt_wo_obs=60*30, ma
 	
 	di <- di[ order(di$date_as_sec),]
 	#print(head(di))
-	t_reg <- seq(from=min(di$date_as_sec), to=max(di$date_as_sec), by=reg_dt)
+	
+	
+	if (is.null(t_reg)) {
+		if (is.null(reg_dt)) {
+			reg_dt <- obs_date_span
+		}
+		else {
+			reg_dt <- min(reg_dt, obs_date_span)
+		}
+		t_reg <- seq(from=obs_date_range[1], to=obs_date_range[2], by=reg_dt)
+		maxStep <- length(t_reg)
+	}
+	else {
+		# allow to be interpolated at inputted t_reg
+		
+		t_reg <- t_reg[t_reg >= obs_date_range[1] & t_reg <= obs_date_range[2]]
+		if (length(t_reg) == 0) {
+			print(paste("No values of submitted t_reg are within the observed time range ", paste(obs_date_range, collapse="--")))
+			t_reg <- obs_date_range
+			reg_dt <- obs_date_span
+		}
+		else {
+			t_reg <- unique(c(obs_date_range[1], t_reg))
+			obs_reg_dt <- unique(diff(t_reg)) 
+			if (length(obs_reg_dt) > 1) {	
+				stop(paste("submitted t_reg argument has multiple observed time gaps:", paste(obs_reg_dt, collapse=", ")))
+			}
+			else {
+				reg_dt <- obs_reg_dt
+			}
+			
+			# if passes:
+			t_reg <- unique(c(t_reg, obs_date_range[2]))
+		}
+		
+		maxStep <- length(t_reg)
+	}
+	
 	print("overall date range")
 	print(as.Date(as.POSIXlt(range(t_reg), origin="1970/01/01")))
 	
@@ -41,10 +85,10 @@ spline_interp <- function(di, area_map=NULL, reg_dt=120, max_dt_wo_obs=60*30, ma
 	#add an extra regular step for coverage
 	#if (max(t_reg) < max(di$date_as_sec)) { t_reg <- c(t_reg, max(t_reg)+reg_dt) }
 	if (is.null(maxStep)) { maxStep <- length(t_reg) }
-	if (maxStep < length(t_reg)) { t_reg <- t_reg[1:maxStep ] }
+	if (maxStep < length(t_reg)) { t_reg <- t_reg[1:maxStep] }
 	
 	#di <- di[di$date_as_sec <= max(t_reg),]
-	di$t_intervals <- as.numeric(as.character(cut(x=di$date_as_sec, breaks=t_reg, labels=1:(maxStep-1)	, right=TRUE)))
+	di$t_intervals <- as.numeric(as.character(cut(x=di$date_as_sec, breaks=t_reg, labels=1:(maxStep-1), right=TRUE)))
 	
 	
 	#now make regular dataset

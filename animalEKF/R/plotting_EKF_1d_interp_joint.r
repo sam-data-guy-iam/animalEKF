@@ -1,18 +1,22 @@
 plotting_EKF_1d_interp_joint <- function(env_obj) {
 
-	
+	 
 	lgd <- format(Sys.time(), "%Y_%m_%d_%H_%M_%S") 
 
+	if (env_obj$output_plot) {
+		grDevices::pdf(paste(env_obj$output_dir, "/EKF_1d", lgd, ".pdf", sep=""))
+	}
 	
-	grDevices::pdf(paste(env_obj$output_dir, "/EKF_1d", lgd, ".pdf", sep=""))
 	half <- ceiling(env_obj$N/2)
-
+	
+	env_obj$d <- as.data.frame(env_obj$d)
+	env_obj$d$tag <- as.factor(env_obj$tags)
 
 	par(mfrow=c(ifelse(env_obj$compare_with_known, 2, 3), 1), las=1)
 
 	#select time gaps within limit
-	hist(x=env_obj$d[,"time_to_next"], main="Distribution of irregular time step lengths", xlab="Seconds")
-	abline(v=c(env_obj$reg_dt, median(env_obj$d[,"time_to_next"], na.rm=TRUE), mean(env_obj$d[,"time_to_next"], na.rm=TRUE)), lwd=2, lty=1:3, col="red")
+	hist(x=env_obj$d$time_to_next, main="Distribution of observed time step lengths", xlab="Seconds")
+	abline(v=c(env_obj$reg_dt, median(env_obj$d$time_to_nex, na.rm=TRUE), mean(env_obj$d$time_to_nex, na.rm=TRUE)), lwd=2, lty=1:3, col="red")
 	legend("topright", legend=c("reg dt","median(obs dt)","mean(obs dt)"), lwd=2, lty=1:3, col="red")
 	
 	matplot(env_obj$resample_history, type="b", col=1:env_obj$nsharks, xlim=c(1, env_obj$N), ylim=c(0, 1), main="Fraction of particles resampled at each step", xlab="Step", ylab="Fraction", pch=19, cex=0.7, las=1)
@@ -23,6 +27,8 @@ plotting_EKF_1d_interp_joint <- function(env_obj) {
 	legend("bottomleft", lty=1, col=1:env_obj$nsharks, legend=env_obj$shark_names, cex=0.5)
 	abline(h=env_obj$neff_sample, lty=3)
 
+	
+	
 	
 	state_colors <- env_obj$states
 	
@@ -39,8 +45,10 @@ plotting_EKF_1d_interp_joint <- function(env_obj) {
 		matplot(pct_foraging, type="b", col=1:env_obj$nsharks, xlim=c(1, env_obj$N), ylim=c(0, 1), main="Cumulative fraction of regular steps simulated to be state 1 (foraging)", xlab="Step", ylab="Fraction", pch=19, cex=0.7, las=1)
 		legend("bottomleft", lty=1, col=1:env_obj$nsharks, legend=env_obj$shark_names, cex=0.5)
 		
-		env_obj$d <- as.data.frame(env_obj$d)
-		env_obj$d$tag <- factor(env_obj$tags)
+
+		
+		print("d")
+		print(env_obj$d)
 		
 				
 		par(mfrow=c(ifelse(env_obj$smoothing, 3, 2), 1), las=1)
@@ -84,7 +92,7 @@ plotting_EKF_1d_interp_joint <- function(env_obj) {
 			agree_bs <- apply(reg2obs_bs == obs_lambda_mat, 2, mean)
 
 			#before resampling
-			barplot(agree_bs, col=obs_lambda, main=paste("Fraction of regular step particles agreeing in state to observed\n,shark",s,", black=1, red=2 (before resampling)"), 
+			barplot(agree_bs, col=obs_lambda, main=paste("Fraction of regular step particles agreeing in state to observed\nblack=1, red=2 (before resampling), shark", s), 
 					ylim=c(-0.1,1), border=NA, space=0, xlab="Observed steps", ylab="Fraction", las=1)
 			if (nrow(reg_int_list)) { 
 				rect(xleft=reg_int_list[,"first"], xright=reg_int_list[,"last"], ytop=rep(1.1, ncol(reg_int_list)), ybottom=rep(0, ncol(reg_int_list)), border="green")
@@ -94,7 +102,7 @@ plotting_EKF_1d_interp_joint <- function(env_obj) {
 			axis(1, loc_tmp, at=loc_tmp - 0.5)
 			
 			#after resampling
-			barplot(agree_final, col=obs_lambda, main=paste("Fraction of regular step particles agreeing in state to observed,\nshark",s,", black=1, red=2 (after resampling)"), 
+			barplot(agree_final, col=obs_lambda, main=paste("Fraction of regular step particles agreeing in state to observed,\nblack=1, red=2 (final), shark",s), 
 					ylim=c(-0.1,1), border=NA, space=0, xlab="Observed steps", ylab="Fraction", las=1)
 			
 			axis(1, loc_tmp, at=loc_tmp)
@@ -115,7 +123,7 @@ plotting_EKF_1d_interp_joint <- function(env_obj) {
 			
 
 			if (env_obj$compare_with_known) {
-				ids_true <- which(env_obj$known_regular_step_ds$tag==s & env_obj$known_regular_step_ds$t_intervals <= max(env_obj$shark_valid_steps[[ s ]]) + 1) 
+				ids_true <- which(env_obj$known_regular_step_ds$tag == s & env_obj$known_regular_step_ds$t_intervals <= max(env_obj$shark_valid_steps[[ s ]]) + 1) 
 				true_lambda <- as.numeric(env_obj$known_regular_step_ds$state.guess2[ ids_true ])
 				true_lambda_mat <-  matrix(true_lambda, ncol=length(ids_true), nrow=env_obj$npart, byrow=TRUE)
 					
@@ -134,7 +142,7 @@ plotting_EKF_1d_interp_joint <- function(env_obj) {
 				agree_true <- apply(reg2true == true_lambda_mat, 2, mean)
 
 			
-				barplot(agree_true, col=obs_lambda, main=paste("Fraction of regular step particles agreeing in state to TRUE,\nshark",s,", black=1, red=2 (after resampling)"), 
+				barplot(agree_true, col=obs_lambda, main=paste("Fraction of regular step particles agreeing in state to TRUE\nblack=1, red=2 (final), shark", s), 
 					ylim=c(-0.1,1.1), border=NA, space=0, xlab="True steps", ylab="Fraction", las=1)
 				loc_tmp_true <- round(seq(1, length(ids_true), length.out=min(length(ids_true),10)))
 				axis(1, loc_tmp_true, at=loc_tmp_true - 0.5)
@@ -183,7 +191,7 @@ plotting_EKF_1d_interp_joint <- function(env_obj) {
 			
 							
 				#after resampling
-				barplot(agree_smoothed, col=obs_lambda, main=paste("Fraction of smoothed step particles agreeing in state to observed,\nshark",s,", black=1, red=2"), 
+				barplot(agree_smoothed, col=obs_lambda, main=paste("Fraction of smoothed step particles agreeing in state to observed\nblack=1, red=2, shark", s), 
 						ylim=c(-0.1,1.1), border=NA, space=0, xlab="Observed steps", ylab="Fraction", las=1, xaxt="n" )
 				
 				if (nrow(reg_int_list)) { 
@@ -213,7 +221,7 @@ plotting_EKF_1d_interp_joint <- function(env_obj) {
 					smooth_agree_true <- apply(apply(smooth2true, 1, function(x) x== true_lambda), 1, mean)
 
 			
-					barplot(smooth_agree_true, col=true_lambda, main=paste("Fraction of smoothed step particles agreeing in state to TRUE,\nshark",s,", black=1, red=2"), 
+					barplot(smooth_agree_true, col=true_lambda, main=paste("Fraction of smoothed step particles agreeing in state to TRUE,\nblack=1, red=2, shark", s), 
 						ylim=c(-0.1,1.1), border=NA, space=0, xlab="True steps", ylab="Fraction", las=1, xaxt="n")
 					axis(1, loc_tmp_true, at=loc_tmp_true - 0.5)
 
@@ -273,9 +281,9 @@ plotting_EKF_1d_interp_joint <- function(env_obj) {
 		#print(yrange)
 		
 		
-		matplot(env_obj$error_beforesamp_quantiles[,,s], type="b", lty=1:3, main=paste("Distance from observed (before sampling), shark",s), ylab="distance", xlab="timestep", ylim=yrange, cex=0.5, pch=1, las=1)
+		matplot(env_obj$error_beforesamp_quantiles[,,s], type="b", lty=1:3, main=paste("Distance from observed (filtered before resampling), shark",s), ylab="distance", xlab="timestep", ylim=yrange, cex=0.5, pch=1, las=1)
 		legend_quantiles()
-		matplot(env_obj$error_final_quantiles[,,s], type="b", lty=1:3, main=paste("Distance from observed (final), shark",s), ylab="distance", xlab="timestep", ylim=yrange, cex=0.5, pch=1, las=1)
+		matplot(env_obj$error_final_quantiles[,,s], type="b", lty=1:3, main=paste("Distance from observed (final filtered), shark",s), ylab="distance", xlab="timestep", ylim=yrange, cex=0.5, pch=1, las=1)
 		legend_quantiles()
 		
 		if (env_obj$smoothing) {
@@ -287,13 +295,15 @@ plotting_EKF_1d_interp_joint <- function(env_obj) {
 	#covariance components
 
 	if (env_obj$compare_with_known) {
-	
+
+		
 		print(env_obj$shark_intervals)
 	
-		par(mfrow=c(2,1))
+		par(mfrow=c(2 + env_obj$smoothing,1))
 		env_obj$error_final_true_allpart <- array(NA, dim=c(env_obj$N, env_obj$npart, env_obj$nsharks), dimnames=list(env_obj$Nnames, env_obj$pnames, env_obj$shark_names)) 
 		env_obj$error_final_true_quantiles <- array(NA, dim=c(env_obj$N, 3, env_obj$nsharks), dimnames=list(env_obj$Nnames, 1:3, env_obj$shark_names))
-		
+		env_obj$error_euclidean_estimate_true_from_obs <- env_obj$euclidean_estimate_true_from_obs <- array(NA, dim=c(env_obj$N, env_obj$nsharks), dimnames=list(env_obj$Nnames, env_obj$shark_names)) 
+
 		if (env_obj$smoothing) { 
 			env_obj$error_smoothed_true_allpart <- array(NA, dim=c(env_obj$N, env_obj$smooth_iter, env_obj$nsharks), dimnames=list(env_obj$Nnames, 1:env_obj$smooth_iter, env_obj$shark_names)) 
 			env_obj$error_smoothed_true_quantiles <- env_obj$error_final_true_quantiles
@@ -302,46 +312,71 @@ plotting_EKF_1d_interp_joint <- function(env_obj) {
 	
 		for (s in env_obj$shark_names) {
 		
-			env_obj$error_final_true_allpart[env_obj$shark_intervals[[ s ]],,s] <- 0
-			if (env_obj$smoothing) {	env_obj$error_smoothed_true_allpart[env_obj$shark_intervals[[ s ]],,s] <- 0 }
-		
-		
-			for (i in env_obj$shark_intervals[[ s ]]) {
+			d_of_shark <- env_obj$d[env_obj$d$tag == s,]
+			obs_d_time_range <- range(d_of_shark$date_as_sec, na.rm=TRUE)
 			
-				ids <- which(env_obj$known_regular_step_ds$tag == s & env_obj$known_regular_step_ds$t_intervals==i)
-
-				if (length(ids)) {
-					
-					j_tmp <- (env_obj$known_regular_step_ds$date_as_sec[ ids ] - env_obj$t_reg[ i ])/env_obj$reg_dt
+			true_shark_ds <- env_obj$known_regular_step_ds[env_obj$known_regular_step_ds$tag == s,]
+			true_shark_ds <- true_shark_ds[true_shark_ds$date_as_sec >= obs_d_time_range[1] & true_shark_ds$date_as_sec <= obs_d_time_range[2],]
 			
-					obs <- env_obj$known_regular_step_ds$X[ ids ]
+			shark_intervals_to_use <- env_obj$shark_valid_steps[[ s ]][ env_obj$shark_valid_steps[[ s ]] %in% true_shark_ds$t_intervals]
+			
+		
+			for (i in shark_intervals_to_use) {
+			
+				ids <- which(true_shark_ds$t_intervals==i)
+				# if it's the first interval, there will be two
+				ids <- ids[length(ids)]
+				
+				obs <- true_shark_ds$X[ ids ]
 										
-					env_obj$error_final_true_allpart[i,,s] <- apply(env_obj$Xpart_history[ i, c("X","logv"),,s], 2, function(x) sum(abs(env_obj$h(mk=x, dtprev=j_tmp * env_obj$reg_dt) - obs)))		
-					env_obj$error_final_true_quantiles[i,,s] <- quantile(env_obj$error_final_allpart[i,,s], p=c(.1, .5, .9), na.rm=TRUE)					
+				env_obj$error_final_true_allpart[i+1,,s] <- abs(env_obj$Xpart_history[i+1 , "X",,s] - obs)
+				env_obj$error_final_true_quantiles[i+1,,s] <- quantile(env_obj$error_final_true_allpart[i+1,,s], p=c(.1, .5, .9), na.rm=TRUE)					
+				
+				if (env_obj$smoothing) {
 					
-					if (env_obj$smoothing) {
+					env_obj$error_smoothed_true_allpart[i+1,,s] <- abs(env_obj$Xpart_history_smoothed[ i+1, "X",,s] - obs)		
+					env_obj$error_smoothed_true_quantiles[i+1,,s] <- quantile(env_obj$error_smoothed_true_allpart[i+1,,s], p=c(.1, .5, .9), na.rm=TRUE)
+				}
 					
-						env_obj$error_smoothed_true_allpart[i,,s] <- apply(env_obj$Xpart_history_smoothed[ i, c("X","logv"),,s], 2, function(x) sum(abs(env_obj$h(mk=x, dtprev=j_tmp * env_obj$reg_dt) - obs)))		
-						env_obj$error_smoothed_true_quantiles[i,,s] <- quantile(env_obj$error_smoothed_true_allpart[i,,s], p=c(.1, .5, .9), na.rm=TRUE)
-					}
+    	
+				#get indices of rows of nearest previous observations
+				
+				nearby_obs_indices <- c(max(which(d_of_shark$date_as_sec <= env_obj$t_reg[i+1])), min(which(d_of_shark$date_as_sec >= env_obj$t_reg[i+1])))
+				
+				if (diff(nearby_obs_indices) == 0) {
+					euc_true_pred <- d_of_shark$X[ nearby_obs_indices[1]]
+				}
+				else {
+					#interpolate observed velocity
+					
+					obs_velocity <- diff(d_of_shark$X[nearby_obs_indices])/diff(d_of_shark$date_as_sec[nearby_obs_indices])
+					
+					euc_true_pred <- d_of_shark$X[nearby_obs_indices[1]] + obs_velocity * (env_obj$t_reg[i+1] - d_of_shark$date_as_sec[nearby_obs_indices[1]])
+				}
+				
+				env_obj$euclidean_estimate_true_from_obs[i+1,s] <- euc_true_pred
+				env_obj$error_euclidean_estimate_true_from_obs[i+1,s] <- sum(abs(euc_true_pred - obs))
+
+			}#loop over i
 		
-				}#loop over i
-			}
 			
-			tmp <- env_obj$error_final_true_quantiles[,,s]
+			tmp <- cbind(env_obj$error_final_true_quantiles[,,s], env_obj$error_euclidean_estimate_true_from_obs[,s])
 			
 			if (env_obj$smoothing) { tmp <- cbind(tmp, env_obj$error_smoothed_true_quantiles[,,s]) }
+			
 			yrange <- range(tmp, na.rm=TRUE)
 			yrange[1] <- min(yrange[1],0)
 			
-			matplot(env_obj$error_final_true_quantiles[,,s], type="b", lty=1:3, main=paste("Distance from TRUE (final), shark", s), ylab="distance", xlab="timestep", ylim=yrange, cex=0.5, pch=1, las=1)
+			matplot(env_obj$error_final_true_quantiles[,,s], type="b", lty=1:3, main=paste("Distance from TRUE (final filtered), shark", s), ylab="distance", xlab="timestep", ylim=yrange, cex=0.5, pch=1, las=1)
 			legend_quantiles()
 		
 			if (env_obj$smoothing) {
 				matplot(env_obj$error_smoothed_true_quantiles[,,s], type="b", lty=1:3, main=paste("Distance from TRUE (smoothed), shark", s), ylab="distance", xlab="timestep", ylim=yrange, cex=0.5, pch=1, las=1)
 				legend_quantiles()
 			}
-		
+			
+			plot(env_obj$error_euclidean_estimate_true_from_obs[,s], type="b", ylab="distance", xlab="timestep", ylim=yrange, cex=0.5, pch=1, las=1, main=paste("Distance from TRUE (Euclidean estimate from observed), shark", s))
+					
 		}#loop over sharks
 	
 	}#if compare
@@ -360,6 +395,8 @@ plotting_EKF_1d_interp_joint <- function(env_obj) {
 		velocity_draws_smoothed <- velocity_draws
 	 }
 	
+	
+	par(mfrow=c(2,1))
 	
 	for (s in env_obj$shark_names) {
 	#par(mfrow=c(3,1))
@@ -479,7 +516,7 @@ plotting_EKF_1d_interp_joint <- function(env_obj) {
 		legend_tmp <- function() { legend("topleft", col=legend_col, lty=legend_lty, lwd=legend_lwd, cex=0.7, ncol=env_obj$nstates, legend=paste(legend_labels_txt, legend_N)) } 
 
 	
-		plot(x=-10, y=-10, xlim=xlim_logv, ylim=c(0, ylim_logv), xlab="alpha", ylab="Density", main=paste("Density of velocity, shark",s), las=1)
+		plot(x=-10, y=-10, xlim=xlim_logv, ylim=c(0, ylim_logv), xlab="alpha", ylab="Density", main=paste("Density of velocity (per second), shark",s), las=1)
 		for (k in 1:env_obj$nstates) {
 			
 			lines(logv_modeled_densities[[ s ]][[ k ]], col=k, lty=1)
@@ -555,7 +592,7 @@ plotting_EKF_1d_interp_joint <- function(env_obj) {
 					abline(h=sum(trans_actual[3,])/sum(trans_actual[c(1,3),]), col=1, lty=2)
 					abline(h=sum(trans_actual[2,])/sum(trans_actual[c(2,4),]), col=2, lty=2)
 				}
-				legend("topright", col=1:2, lty=1, legend=c("P(1->2)","P(2-> 1)"), lwd=1.5, cex=0.7)
+				legend("topright", col=1:2, lty=1, legend=c("Pr(1 -> 2)","Pr(2 -> 1)"), lwd=1.5, cex=0.7)
 
 				region_tab <- 100
 				
@@ -608,7 +645,7 @@ plotting_EKF_1d_interp_joint <- function(env_obj) {
 				}
 				
 				points(x=trans_prob_actual[,1], y=1:env_obj$nstates, col=1:env_obj$nstates, pch=1) 	
-				legend("topright", col=c(1,1:env_obj$nstates), lty=c(1,2,2), legend=c("foraging","p{1->2}", "p{2-> 1}"), cex=.5)
+				legend("topright", col=c(1,1:env_obj$nstates), lty=c(1,2,2), legend=c("Pr(foraging)","Pr(1 -> 2)", "p(2 -> 1)"), cex=.5)
 		
 			}#end looping over sharks
 			
@@ -635,7 +672,7 @@ plotting_EKF_1d_interp_joint <- function(env_obj) {
 				}
 				abline(v=trans_prob_actual[,1]+runif(2, min=-0.001, max=0.001), col=1:env_obj$nstates, lty=2)
 							
-				legend("topright",col=c(1,1:env_obj$nstates), lty=c(1,2,2), legend=c("foraging","p{1->2}", "p{2-> 1}"), cex=.5)
+				legend("topright",col=c(1,1:env_obj$nstates), lty=c(1,2,2), legend=c("Pr(foraging)","Pr(1 -> 2)", "Pr(2 -> 1)"), cex=.5)
 		
 			
 			}#loop over sharks
@@ -672,12 +709,12 @@ plotting_EKF_1d_interp_joint <- function(env_obj) {
 					
 			
 				}
-				plot(x=-1, y=-1, xlim=range(tis), ylim=c(0,1), main=paste("Time-dependent median P{1->2}, shark",s), xlab="Number of steps in state", ylab="Probability", las=1)
+				plot(x=-1, y=-1, xlim=range(tis), ylim=c(0,1), main=paste("Time-dependent median Pr(1 -> 2), shark",s), xlab="Number of steps in state", ylab="Probability", las=1)
 					
 										
 				lines(apply(env_obj$region_trans_draws[,,1,s],2,mean), col=1, type="b")
 						
-				plot(x=-1, y=-1, xlim=range(tis), ylim=c(0,1), main=paste("Time-dependent median P{2-> 1}, shark",s), xlab="Number of steps in state", ylab="Probability", las=1)
+				plot(x=-1, y=-1, xlim=range(tis), ylim=c(0,1), main=paste("Time-dependent median Pr(2 -> 1), shark",s), xlab="Number of steps in state", ylab="Probability", las=1)
 					
 										
 				lines(apply(env_obj$region_trans_draws[,,2,s],2,mean), col=1, type="b")
@@ -880,7 +917,7 @@ plotting_EKF_1d_interp_joint <- function(env_obj) {
 		closest <- order(dfrompts[1:closest_num])
 		rx <- range(c(env_obj$Xpart_history[,"X",closest,s], env_obj$d[,"X"]), na.rm=TRUE)*c(1, 1.1)
 
-		plot(x=-10, y=-10, ylim=c(0, closest_num), xlim=rx, main=paste("Closest trajectories to observed (final), shark", s), xlab="X", yaxt="n", ylab="particle", las=1)
+		plot(x=-10, y=-10, ylim=c(0, closest_num), xlim=rx, main=paste("Closest trajectories to observed (final filtered), shark", s), xlab="X", yaxt="n", ylab="particle", las=1)
 		abline(v=env_obj$d[env_obj$tags==s,"X"], col="red", lwd=1)
 
 		
@@ -918,7 +955,7 @@ plotting_EKF_1d_interp_joint <- function(env_obj) {
 		#print(brks)
 
 		
-		plot(x=-10, y=-10, ylim=c(0,1), xlim=rxi*c(1, 1.15), main=paste("Density of predictions of observed loc., shark", s), yaxt="n", xlab="X", ylab="")	
+		plot(x=-10, y=-10, ylim=c(0,1), xlim=rxi*c(1, 1.15), main=paste("Density of predictions of observed loc. (final), shark", s), yaxt="n", xlab="X", ylab="")	
 		rect(xleft=brks[-length(brks)], xright=brks[-1], ybottom=rep(0, nbins), ytop=rep(1,nbins), border=NA, col=intensity_gray_scale[ intens_level ])
 		abline(v=env_obj$d[ env_obj$tags==s,"X"], col="red", lwd=1)
 		legend_intensity()
@@ -948,7 +985,7 @@ plotting_EKF_1d_interp_joint <- function(env_obj) {
 			rx <- range(c(env_obj$Xpart_history[,"X",closest,s], env_obj$known_regular_step_ds[env_obj$known_regular_step_ds$tag==s,"X"]), na.rm=TRUE)*c(1, 1.15)
 
 
-			plot(x=-10, y=-10, ylim=c(0,closest_num), xlim=rx, main=paste("Closest trajectories to TRUE (final), shark", s), xlab="X", yaxt="n", ylab="")
+			plot(x=-10, y=-10, ylim=c(0,closest_num), xlim=rx, main=paste("Closest trajectories to TRUE (final filtered), shark", s), xlab="X", yaxt="n", ylab="")
 			abline(v=env_obj$known_regular_step_ds[env_obj$known_regular_step_ds$tag==s,"X"], col="red", lwd=1)
 			for (jj in 1:length(closest)) {
 				points(x=env_obj$Xpart_history[,"X", closest[ jj ],s], y=rep(jj, env_obj$N), cex=0.7)
@@ -982,7 +1019,7 @@ plotting_EKF_1d_interp_joint <- function(env_obj) {
 			#print(brks)
 			
 			
-			plot(x=-10, y=-10, ylim=c(0,1), xlim=rxi*c(1, 1.15), main=paste("Density of predictions (final), with TRUE, shark", s), yaxt="n", xlab="X", ylab="")	
+			plot(x=-10, y=-10, ylim=c(0,1), xlim=rxi*c(1, 1.15), main=paste("Density of predictions (final filtered), with TRUE, shark", s), yaxt="n", xlab="X", ylab="")	
 			rect(xleft=brks[-length(brks)], xright=brks[-1], ybottom=rep(0,nbins), ytop=rep(1,nbins), border=NA, col=intensity_gray_scale[ intens_level ])
 			abline(v=env_obj$known_regular_step_ds[ env_obj$known_regular_step_ds$tag==s,"X"], col="red", lwd=1)
 			legend_intensity_true()
@@ -1001,7 +1038,8 @@ plotting_EKF_1d_interp_joint <- function(env_obj) {
 	}	
 		
 		
-		
-	grDevices::dev.off()
+	if (env_obj$output_plot) {	
+		grDevices::dev.off()
+	}
 	invisible(NULL)
 }	

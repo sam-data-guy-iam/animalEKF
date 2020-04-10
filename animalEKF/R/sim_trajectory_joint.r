@@ -520,8 +520,6 @@ sim_trajectory_joint <- function(area_map, centroids,
 				
 			}#finish drawing the behavior
 			
-			#multiply by time step
-			d[,"time_in_state",] <- d[,"time_in_state",] * reg_dt 
 			
 			inside <- FALSE
 						
@@ -555,13 +553,14 @@ sim_trajectory_joint <- function(area_map, centroids,
 				}
 			}
 
-		}#loop over sharks			
+		}#loop over sharks
+
+				
 	}#loop over times
 	
-	
-	#get rid of last row because causes NAs
-	
-	
+	#multiply by time step
+	d[,"time_in_state",] <- d[,"time_in_state",] * reg_dt 
+		
 	
 	
 	if (gen_irreg) {

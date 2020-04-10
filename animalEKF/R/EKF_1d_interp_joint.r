@@ -1,11 +1,11 @@
 EKF_1d_interp_joint <- function(d, 
 				npart=100, sigma_pars, alpha0_pars=list(mu0=c(5, 9), V0=c(0.25, 0.25)), Errvar0=rep(list(5), 2), 
 				Errvar_df=c(20, 20), Particle_errvar0, Particle_err_df=20, delaysample=1,
-				dirichlet_init=c(10,3,3,8), maxStep=nrow(d), state_favor=c(1, 1.5), nstates=2, lowvarsample=FALSE, 
+				dirichlet_init=c(10,3,3,8), maxStep=NULL, state_favor=c(1, 1.5), nstates=2, lowvarsample=FALSE, 
 				time_radius=60*30, spat_radius=300, min_num_neibs=10, interact=TRUE,
 				interact_pars=list(mu0=0, precision0=2, known_precision=2), neff_sample=1,  
 				time_dep_trans=FALSE, time_dep_trans_init=dirichlet_init, smoothing=FALSE, fix_smoothed_behaviors=TRUE, 
-				smooth_parameters=TRUE, reg_dt=150, max_int_wo_obs=15, resamp_full_hist=TRUE, 
+				smooth_parameters=TRUE, reg_dt=150, max_int_wo_obs=NULL, resamp_full_hist=TRUE, 
 				compare_with_known=FALSE, known_trans_prob=NULL, known_foraging_prob=NULL, known_regular_step_ds=NULL,
 				update_eachstep=FALSE, update_params_for_obs_only=FALSE,
 				output_plot=TRUE, output_dir=getwd()) {
@@ -514,9 +514,7 @@ EKF_1d_interp_joint <- function(d,
 	
 	
 	#plotting
-	if (myenv$output_plot) {
-		plotting_EKF_1d_interp_joint(env_obj=myenv)
-	}
+	plotting_EKF_1d_interp_joint(env_obj=myenv)
 	
 	#now clean up a bit
 

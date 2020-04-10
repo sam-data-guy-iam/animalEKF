@@ -28,7 +28,7 @@ plot_diagnostics_step_EKF_interp_joint <- function(env_obj) {
 	for (ss in other_sharks) {
 
 		#plot of ellipses
-		plot(env_obj$area_map, border="green", asp=1, xlim=env_obj$obs_XY_bbox[,"X"], ylim=env_obj$obs_XY_bbox[,"Y"], 
+		sp::plot(env_obj$area_map, border="green", asp=1, xlim=env_obj$obs_XY_bbox[,"X"], ylim=env_obj$obs_XY_bbox[,"Y"], 
 			 main=paste(type_title,ss," t=", env_obj$i, sep=""), xlab="X", ylab="Y", cex.main=0.8, las=0, axes=TRUE) 
 	
 	
@@ -58,7 +58,7 @@ plot_diagnostics_step_EKF_interp_joint <- function(env_obj) {
 	
 		#logv density
 		plot(x=-5, y=-5, xlim=range(pl_logv), ylim=c(0, ymax_logv), xlab="alpha", ylab="density", 
-			 main=paste("LogV dens, shark", ss, ", t=", env_obj$i, sep=""), las=1, cex.main=0.8)
+			 main=paste("Log-speed dens, shark", ss, ", t=", env_obj$i, sep=""), las=1, cex.main=0.8)
 		abline(h=0, lwd=0.25)
 
 		for (k in 1:env_obj$nstates) {

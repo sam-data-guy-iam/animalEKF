@@ -3,10 +3,12 @@ plotting_EKF_interp_joint <- function(env_obj) {
 	
 	lgd <- format(Sys.time(), "%Y_%m_%d_%H_%M_%S") 
 	
-	sharkid <- ""
-
-	print("printing pdf")
-	grDevices::pdf(paste(env_obj$output_dir,"/EKFdiag",lgd,"_",sharkid,".pdf", sep=""))
+	
+	if (env_obj$output_plot) {	
+		print("printing pdf")
+		grDevices::pdf(paste(env_obj$output_dir,"/EKFdiag",lgd,".pdf", sep=""))
+	}
+	
 	half <- ceiling(env_obj$N/2)
 
 
@@ -16,7 +18,7 @@ plotting_EKF_interp_joint <- function(env_obj) {
 	#if we actually have the original regular observations from which the irregular one comes from (the one we are trying to interpolate), use that to calculate densities
 	
 	env_obj$d <- as.data.frame(env_obj$d)
-	env_obj$d$tag <- factor(env_obj$tags) 
+	env_obj$d$tag <- as.factor(env_obj$tags) 
 	
 	
 	print(head(env_obj$d))
@@ -37,7 +39,7 @@ plotting_EKF_interp_joint <- function(env_obj) {
 	
 	par(mfcol=c(1,1))
 	
-	plot(env_obj$area_map, xlim=obs_x_range, ylim=obs_y_range, main=obs_title, asp=1, xlab="X", ylab="Y", las=0, axes=TRUE)
+	sp::plot(env_obj$area_map, xlim=obs_x_range, ylim=obs_y_range, main=obs_title, asp=1, xlab="X", ylab="Y", las=0, axes=TRUE)
 	
 	if (env_obj$nregions > 1 ) { plot.deldir(vortess, wlines="tess", cex=0, add=TRUE) }
 	text(env_obj$centroids[,1,drop=FALSE], env_obj$centroids[,2,drop=FALSE], labels=1:nrow(env_obj$centroids))
@@ -81,7 +83,7 @@ plotting_EKF_interp_joint <- function(env_obj) {
 		
 		if (length(a) >0) {
 			
-			hist(x=a, main=paste("Distribution of irregular time steps, shark",s), xlab="Seconds")
+			hist(x=a, main=paste("Distribution of observed time steps, shark",s), xlab="Seconds")
 			abline(v=c(env_obj$reg_dt, median(env_obj$d[,"time_to_next"], na.rm=TRUE), mean(env_obj$d[,"time_to_next"], na.rm=TRUE)), lwd=2, lty=1:3, col="red")
 			legend("topright", legend=c("reg dt","median(obs dt)","mean(obs dt)"), lwd=2, lty=1:3, col="red")
 		}
@@ -273,7 +275,8 @@ plotting_EKF_interp_joint <- function(env_obj) {
 	
 
 	
-	par(mfrow=c(2 + (env_obj$nstates > 1),1), las=1)
+	par(mfrow=c(2,1))
+	
 	if (env_obj$nstates > 1) {
 		
 		pct_foraging <- apply(env_obj$lambda_matrix, c(2,3), function(x) sum(x==1, na.rm=FALSE)/env_obj$npart)
@@ -286,6 +289,16 @@ plotting_EKF_interp_joint <- function(env_obj) {
 		legend("topright", lty=1, col=1:env_obj$nsharks, legend=env_obj$shark_names, cex=0.5)
 	}
 	
+	if (env_obj$truncate_to_map) {
+		for (s in env_obj$shark_names) {
+
+			matplot(env_obj$reject_samp_hist[,,s], type="l", col=1:2, lty=1, main=paste("Number of rejecting samples required to be in boundary, shark",s), ylab="Number", xlab="timestep", lwd=1.5, las=1, ylim=c(0, max(env_obj$reject_samp_hist, na.rm=TRUE)))
+			legend("topright", col=1:2, lty=1, legend=c("mean","median"), lwd=1.5, cex=0.7)
+		}
+	}		
+	
+	# resample history
+
 	matplot(env_obj$resample_history, type="b", col=1:env_obj$nsharks, xlim=c(1,env_obj$N), ylim=c(0,1), main="Fraction of particles resampled at each step", xlab="Step", ylab="Fraction", pch=19, cex=0.7, las=1)
 	legend("bottomleft", lty=1, col=1:env_obj$nsharks, legend=env_obj$shark_names, cex=0.5)
 	
@@ -294,8 +307,10 @@ plotting_EKF_interp_joint <- function(env_obj) {
 	legend("bottomleft", lty=1, col=1:env_obj$nsharks, legend=env_obj$shark_names, cex=0.5)
 	abline(h=env_obj$neff_sample, lty=3)
 		
+		
 	
-	par(mfrow=c(2,1), las=1)
+	
+	par(mfrow=c(ifelse(env_obj$smoothing,3,2),1))
 	#errors from observed
 
 	env_obj$error_final_allpart <- array(NA, dim=c(env_obj$N, env_obj$npart, env_obj$nsharks), dimnames=list(env_obj$Nnames, env_obj$pnames, env_obj$shark_names))
@@ -305,10 +320,6 @@ plotting_EKF_interp_joint <- function(env_obj) {
 
 	for (s in env_obj$shark_names) {
 
-		if (env_obj$truncate_to_map) {
-			matplot(env_obj$reject_samp_hist[,,s], type="l", col=1:2, lty=1, main=paste("Number of rejecting samples required to be in boundary, shark",s), ylab="Number", xlab="timestep", lwd=1.5, las=1, ylim=c(0, max(env_obj$reject_samp_hist, na.rm=TRUE)))
-			legend("topright", col=1:2, lty=1, legend=c("mean","median"), lwd=1.5, cex=0.7)
-		}	
 		
 		env_obj$error_final_allpart[env_obj$shark_intervals[[ s ]],,s] <- 0
 		if (env_obj$smoothing) {	env_obj$error_smoothed_allpart[env_obj$shark_intervals[[ s ]],,s] <- 0 }
@@ -349,14 +360,14 @@ plotting_EKF_interp_joint <- function(env_obj) {
 		yrange[1] <- min(yrange[1],0)
 		
 		
-		matplot(env_obj$error_beforesamp_quantiles[,,s], type="b", lty=1:3, main=paste("Distance from observed (before sampling), shark",s), ylab="distance", xlab="timestep", ylim=yrange, cex=0.5, pch=1, las=1)
+		matplot(env_obj$error_beforesamp_quantiles[,,s], type="b", lty=1:3, main=paste("Distance from observed (filtered before resampling), shark",s), ylab="distance", xlab="timestep", ylim=yrange, cex=0.5, pch=1, las=1)
 		legend_quantiles()
 		
-		matplot(env_obj$error_final_quantiles[,,s], type="b", lty=1:3, main=paste("Distance from observed (final", ifelse(env_obj$smoothing," smoothed)",")"),", shark ",s,sep=""), ylab="distance", xlab="timestep", ylim=yrange, cex=0.5, pch=1, las=1)
+		matplot(env_obj$error_final_quantiles[,,s], type="b", lty=1:3, main=paste("Distance from observed (final filtered), shark",s), ylab="distance", xlab="timestep", ylim=yrange, cex=0.5, pch=1, las=1)
 		legend_quantiles()
 		
 		if (env_obj$smoothing) {
-			matplot(env_obj$error_smoothed_quantiles[,,s], type="b", lty=1:3, main=paste("Distance from observed (final unsmoothed), shark",s), ylab="distance", xlab="timestep", ylim=yrange, cex=0.5, pch=1, las=1)
+			matplot(env_obj$error_smoothed_quantiles[,,s], type="b", lty=1:3, main=paste("Distance from observed (smoothed), shark",s), ylab="distance", xlab="timestep", ylim=yrange, cex=0.5, pch=1, las=1)
 			legend_quantiles()
 		}
 	
@@ -366,72 +377,110 @@ plotting_EKF_interp_joint <- function(env_obj) {
 	if (env_obj$compare_with_known) {
 		
 
-		par(mfrow=c(2,1))
+		par(mfrow=c(2 + env_obj$smoothing,1))
+
 		env_obj$error_final_true_allpart <- array(NA, dim=c(env_obj$N, env_obj$npart, env_obj$nsharks), dimnames=list(env_obj$Nnames, env_obj$pnames, env_obj$shark_names)) 
-		error_final_true_quantiles <- array(NA, dim=c(env_obj$N, 3, env_obj$nsharks), dimnames=list(env_obj$Nnames, 1:3, env_obj$shark_names))
+		env_obj$error_final_true_quantiles <- array(NA, dim=c(env_obj$N, 3, env_obj$nsharks), dimnames=list(env_obj$Nnames, 1:3, env_obj$shark_names))
+		env_obj$error_euclidean_estimate_true_from_obs <- array(NA, dim=c(env_obj$N, 2, env_obj$nsharks), dimnames=list(env_obj$Nnames, c("euclidean", "bezier"), env_obj$shark_names)) 
+		env_obj$euclidean_estimate_true_from_obs <- array(NA, dim=c(env_obj$N, 2, 2, env_obj$nsharks), dimnames=list(env_obj$Nnames, c("X","Y"), c("euclidean", "bezier"), env_obj$shark_names)) 
+
 		
 		if (env_obj$smoothing) { 
 			env_obj$error_smoothed_true_allpart <- array(NA, dim=c(env_obj$N, env_obj$smooth_iter, env_obj$nsharks), 
 														 dimnames=list(env_obj$Nnames, 1:env_obj$smooth_iter, env_obj$shark_names)) 
-			error_smoothed_true_quantiles <- error_final_true_quantiles 
+			env_obj$error_smoothed_true_quantiles <- env_obj$error_final_true_quantiles 
 		}
 
 
 		for (s in env_obj$shark_names) {
 			
 			env_obj$error_final_true_allpart[env_obj$shark_intervals[[ s ]],,s] <- 0
-			if (env_obj$smoothing) {	env_obj$error_smoothed_true_allpart[env_obj$shark_intervals[[ s ]],,s] <- 0 }
-		
-		
-			for (i in env_obj$shark_intervals[[ s ]]) {
-				
-				ids <- which(env_obj$known_regular_step_ds$tag == s & env_obj$known_regular_step_ds$t_intervals==i)
-							
-				if (length(ids)) {
-				
-					j_tmp <- (env_obj$known_regular_step_ds$date_as_sec[ ids ] - env_obj$t_reg[ i ])/env_obj$reg_dt
-					obs <- env_obj$known_regular_step_ds[ ids, c("X","Y"), drop=FALSE ]
-					
-					for (jj in 1:nrow(obs)) {
-		
-						#error from predictions
-						env_obj$error_final_true_allpart[i,,s] <- env_obj$error_final_true_allpart[i,,s] + 
-						as.vector(dist_func(center=obs[jj,], otherXY=t(apply(env_obj$Xpart_history[ i, c("X","Y","logv","bearing_rad"),,s], 2, function(x) env_obj$h(mk=x, dtprev=j_tmp[ jj ] * env_obj$reg_dt)))))
-					}			
+			d_of_shark <- env_obj$d[env_obj$d$tag == s,]
 			
-					error_final_true_quantiles[i,,s] <- quantile(env_obj$error_final_true_allpart[i,,s], p=c(.1, .5, .9), na.rm=TRUE)
-
-					if (env_obj$smoothing) {
-						
-						for (jj in 1:nrow(obs)) {
-				
-						#error from predictions
-						env_obj$error_smoothed_true_allpart[i,,s] <- env_obj$error_smoothed_true_allpart[i,,s] + 
-							as.vector(dist_func(center=obs[jj,], otherXY=t(apply(env_obj$Xpart_history_smoothed[ i, c("X","Y","logv","bearing_rad"),,s], 2, function(x) env_obj$h(mk=x, dtprev=j_tmp[ jj ] * env_obj$reg_dt)))))
-						
-						}			
+			obs_d_time_range <- range(d_of_shark$date_as_sec, na.rm=TRUE)
 			
-					error_smoothed_true_quantiles[i,,s] <- quantile(env_obj$error_smoothed_true_allpart[i,,s], p=c(.1, .5, .9), na.rm=TRUE)
-					}					
+			true_shark_ds <- env_obj$known_regular_step_ds[env_obj$known_regular_step_ds$tag == s,]
+			true_shark_ds <- true_shark_ds[true_shark_ds$date_as_sec >= obs_d_time_range[1] & true_shark_ds$date_as_sec <= obs_d_time_range[2],]
+			
+			shark_intervals_to_use <- env_obj$shark_valid_steps[[ s ]][ env_obj$shark_valid_steps[[ s ]] %in% true_shark_ds$t_intervals]
+			
+			for (i in shark_intervals_to_use) {
+				
+				ids <- which(true_shark_ds$t_intervals==i)
+				# if it's the first interval, there will be two
+				ids <- ids[length(ids)]
+				
+				obs <- true_shark_ds[ ids, c("X","Y"), drop=FALSE]
+										
+				env_obj$error_final_true_allpart[i+1,,s] <- dist_func(center=obs, otherXY=t(env_obj$Xpart_history[i+1 , c("X","Y"),,s]))
+				env_obj$error_final_true_quantiles[i+1,,s] <- quantile(env_obj$error_final_true_allpart[i+1,,s], p=c(.1, .5, .9), na.rm=TRUE)					
 
+				
+				if (env_obj$smoothing) {
+						
+					env_obj$error_smoothed_true_allpart[i+1,,s] <- dist_func(center=obs, otherXY=t(env_obj$Xpart_history_smoothed[i+1 , c("X","Y"),,s]))
+					env_obj$error_smoothed_true_quantiles[i+1,,s] <- quantile(env_obj$error_smoothed_true_allpart[i+1,,s], p=c(.1, .5, .9), na.rm=TRUE)
 				}
 
-		
+				#get indices of rows of nearest previous observations
+
+					
+				nearby_obs_indices <- c(max(which(d_of_shark$date_as_sec <= env_obj$t_reg[i+1])), min(which(d_of_shark$date_as_sec >= env_obj$t_reg[i+1])))
+					
+				obs_xy <- d_of_shark[nearby_obs_indices, c("X","Y"), drop=FALSE]
+				obs_dxy <- apply(obs_xy, 2, diff)
+				obs_dist <- sqrt(sum(obs_dxy^2))
+				obs_bear <- atan2(x=obs_dxy["X"], y=obs_dxy["Y"])
+				obs_timediff <- diff(d_of_shark$date_as_sec[nearby_obs_indices])
+				
+				if (obs_timediff == 0) {
+					euc_pred <- obs_xy[1,]
+				}
+				else {
+					euc_pred <- env_obj$h(mk=c(obs_xy[1,], log_safe(obs_dist/obs_timediff), obs_bear), dtprev=(env_obj$t_reg[i+1] - d_of_shark$date_as_sec[nearby_obs_indices[1]]))
+				}
+										
+				env_obj$euclidean_estimate_true_from_obs[i+1,,"euclidean",s] <- euc_pred						
+				env_obj$error_euclidean_estimate_true_from_obs[i+1,"euclidean",s] <- sum(dist_func(center=euc_pred, otherXY=obs))
+
 			}#loop over i
 			
+			t_reg_in_shark_intervals <- as.integer(round(true_shark_ds$date_as_sec)) %in% as.integer(round(env_obj$t_reg[ shark_intervals_to_use + 1]))
+	
 			
-			tmp <- error_final_true_quantiles[,,s]
-			if (env_obj$smoothing) { tmp <- cbind(tmp, error_smoothed_true_quantiles[,,s]) }
+			spline_estimates <- spline_interp(di=d_of_shark, area_map=env_obj$area_map, t_reg=true_shark_ds$date_as_sec,
+											  max_dt_wo_obs=(env_obj$N + 1)*env_obj$reg_dt, maxStep=env_obj$N + 1,
+											  centroids=env_obj$centroids, nstates=env_obj$nstates, spline_deg=3, split_logv=-3)$d_ds
+
+			spline_estimates <- spline_estimates[t_reg_in_shark_intervals, c("X","Y"), drop=FALSE]
+						
+			spline_errors <- apply(spline_estimates - true_shark_ds[t_reg_in_shark_intervals, c("X","Y"), drop=FALSE], 1, function(x) sqrt(sum(x^2)))
+	
+			env_obj$error_euclidean_estimate_true_from_obs[shark_intervals_to_use + 1,"bezier",s] <- spline_errors
+			env_obj$euclidean_estimate_true_from_obs[shark_intervals_to_use + 1,,"bezier",s] <- spline_estimates						
+
+
+			#spline_distances <- apply(1:nrow(spline_estimates), function(jj) sum(dist_func(center=spline_estimates[jj, c("X","Y")], otherXY=)))		
+				
+			
+			tmp <- cbind(env_obj$error_final_true_quantiles[,,s], env_obj$error_euclidean_estimate_true_from_obs[,,s])
+			
+			if (env_obj$smoothing) { tmp <- cbind(tmp, env_obj$error_smoothed_true_quantiles[,,s]) }
 			yrange <- range(tmp, na.rm=TRUE)
 			yrange[1] <- min(yrange[1],0)
 			
-			matplot(error_final_true_quantiles[,,s], type="b", lty=1:3, main=paste("Distance from TRUE (final), shark",s), ylab="distance", xlab="timestep", ylim=yrange, cex=0.5, pch=1, las=1)
+			matplot(env_obj$error_final_true_quantiles[,,s], type="b", lty=1:3, main=paste("Distance from TRUE (final filtered), shark",s), ylab="distance", xlab="timestep", ylim=yrange, cex=0.5, pch=1, las=1)
 			legend_quantiles()
 		
 			if (env_obj$smoothing) {
-				matplot(error_smoothed_true_quantiles[,,s], type="b", lty=1:3, main=paste("Distance from TRUE (smoothed), shark",s), ylab="distance", xlab="timestep", ylim=yrange, cex=0.5, pch=1, las=1)
+				matplot(env_obj$error_smoothed_true_quantiles[,,s], type="b", lty=1:3, main=paste("Distance from TRUE (smoothed), shark",s), ylab="distance", xlab="timestep", ylim=yrange, cex=0.5, pch=1, las=1)
 				legend_quantiles()
 			}
+		
+			matplot(env_obj$error_euclidean_estimate_true_from_obs[,,s], type="b", ylab="distance", xlab="timestep", ylim=yrange, cex=0.5, pch=1, col=1:2, lty=1:2, las=1,
+				main=paste("Distance from TRUE (estimated from observed), shark", s))
+			legend("topleft", col=1:2, lty=1:2, cex=0.7, pch=1, legend=c("Euclidean", "Bezier spline"))
+
 		
 		}#loop over sharks
 
@@ -678,7 +727,7 @@ plotting_EKF_interp_joint <- function(env_obj) {
 		legend_tmp <- function() { legend("topleft", col=legend_col, lty=legend_lty, lwd=legend_lwd, cex=.7, ncol=env_obj$nstates, legend=paste(legend_labels_txt, legend_N)) } 
 
 		
-		plot(x=-10, y=-10, xlim=xlim_logv, ylim=c(0,ylim_logv), xlab="alpha", ylab="Density", main=paste("Density of logV, shark",ss), las=1)
+		plot(x=-10, y=-10, xlim=xlim_logv, ylim=c(0,ylim_logv), xlab="alpha", ylab="Density", main=paste("Density of log-speed (per second), shark",ss), las=1)
 		for (k in 1:env_obj$nstates) {
 			
 			lines(logv_modeled_densities[[ ss ]][[ k ]], col=k, lty=1)
@@ -701,7 +750,7 @@ plotting_EKF_interp_joint <- function(env_obj) {
 		legend_tmp()
 
 		
-		plot(x=-10, y=-10, xlim=c(-pi,pi), ylim=c(0,ylim_turn), xaxt="n", xlab="beta", ylab="Density", main=paste("Density of turn (rad), shark",s), las=1)
+		plot(x=-10, y=-10, xlim=c(-pi,pi), ylim=c(0,ylim_turn), xaxt="n", xlab="beta", ylab="Density", main=paste("Density of turn angle (radians), shark",s), las=1)
 		axis(side=1, at=seq(-pi,pi, by=pi/2), labels=c(expression(-pi), expression(paste(-pi, "/", 2)), 0, expression(paste(pi, "/", 2)), expression(pi)))
 		
 		for (k in 1:env_obj$nstates) {
@@ -946,7 +995,7 @@ plotting_EKF_interp_joint <- function(env_obj) {
 			#P1to2
 			for (ss in env_obj$shark_names) {
 			
-				plot(x=-4, y=-4, xlim=c(0,1), ylim=c(1, env_obj$nregions + 1), main=paste("CIs for p{1->2} transition by region, shark", ss), xlab="probability", ylab="region", las=1, yaxt="n")
+				plot(x=-4, y=-4, xlim=c(0,1), ylim=c(1, env_obj$nregions + 1), main=paste("CIs for Pr(1 -> 2) transition by region, shark", ss), xlab="probability", ylab="region", las=1, yaxt="n")
 				axis(side=2, labels=1:env_obj$nregions, at=1:env_obj$nregions)
 				for (rr in 1:env_obj$nregions) {			
 					emp_q <- as.numeric(HDInterval::hdi(env_obj$region_trans_draws[,rr,1,2, ss]))
@@ -970,7 +1019,7 @@ plotting_EKF_interp_joint <- function(env_obj) {
 			#P2to1
 			for (ss in env_obj$shark_names) {
 			
-				plot(x=-4, y=-4, xlim=c(0,1), ylim=c(1, env_obj$nregions + 1), main=paste("CIs for p{2->1} transition by region, shark", ss), xlab="probability", ylab="region", las=1, yaxt="n")
+				plot(x=-4, y=-4, xlim=c(0,1), ylim=c(1, env_obj$nregions + 1), main=paste("CIs for Pr(2 -> 1) transition by region, shark", ss), xlab="probability", ylab="region", las=1, yaxt="n")
 				axis(side=2, labels=1:env_obj$nregions, at=1:env_obj$nregions)
 				for (rr in 1:env_obj$nregions) {			
 					emp_q <- as.numeric(HDInterval::hdi(env_obj$region_trans_draws[,rr,2,1, ss]))
@@ -1005,7 +1054,7 @@ plotting_EKF_interp_joint <- function(env_obj) {
 						
 			for (ss in env_obj$shark_names) {
 				
-				plot(foraging_density_byregion[[ ss ]][[ 1 ]], ylab="density", xlim=c(0,1), ylim=c(0,ylim_foraging),col=1, lty=2, main=paste("Density of p(foraging) by region, shark",ss), xlab="Probability", las=1)
+				plot(foraging_density_byregion[[ ss ]][[ 1 ]], ylab="density", xlim=c(0,1), ylim=c(0,ylim_foraging),col=1, lty=2, main=paste("Density of Pr(foraging) by region, shark",ss), xlab="Probability", las=1)
 				
 				if (env_obj$nregions > 1) {
 					for ( r in 2:env_obj$nregions) {
@@ -1021,7 +1070,7 @@ plotting_EKF_interp_joint <- function(env_obj) {
 				legend("topright",col=1:env_obj$nregions, legend=paste(1:env_obj$nregions, ":", region_tab, "%"), cex=0.5, lty=(1:env_obj$nregions %% 3) + 1)
 				
 				if (env_obj$smooth_parameters) {
-					plot(foraging_density_byregion_smoothed[[ ss ]][[ 1 ]], ylab="density", xlim=c(0,1), ylim=c(0,ylim_foraging),col=1, lty=2, main=paste("Density of p(foraging) by region, shark",ss, "(smoothed)"), xlab="Probability", las=1)
+					plot(foraging_density_byregion_smoothed[[ ss ]][[ 1 ]], ylab="density", xlim=c(0,1), ylim=c(0,ylim_foraging),col=1, lty=2, main=paste("Density of Pr(foraging) by region, shark",ss, "(smoothed)"), xlab="Probability", las=1)
 				
 					if (env_obj$nregions > 1) {
 						for ( r in 2:env_obj$nregions) {
@@ -1059,7 +1108,7 @@ plotting_EKF_interp_joint <- function(env_obj) {
 			#P1t2
 			for (ss in env_obj$shark_names) {
 				
-				plot(p1to2_density_byregion[[ ss ]][[ 1 ]], ylab="density", xlim=c(0,1), ylim=c(0,ylim_trans),col=1, lty=2, main=paste("Density of p(1->2) by region, shark", ss), xlab="Probability", las=1)
+				plot(p1to2_density_byregion[[ ss ]][[ 1 ]], ylab="density", xlim=c(0,1), ylim=c(0,ylim_trans),col=1, lty=2, main=paste("Density of Pr(1 -> 2) by region, shark", ss), xlab="Probability", las=1)
 				
 				if (env_obj$nregions > 1) {
 					for ( r in 2:env_obj$nregions) {
@@ -1075,7 +1124,7 @@ plotting_EKF_interp_joint <- function(env_obj) {
 				legend("topright",col=1:env_obj$nregions, legend=paste(1:env_obj$nregions, ":", region_tab, "%"), cex=0.5, lty=(1:env_obj$nregions %% 3) + 1)
 				
 				if (env_obj$smooth_parameters) {
-					plot(p1to2_density_byregion_smoothed[[ ss ]][[ 1 ]], ylab="density", xlim=c(0,1), ylim=c(0,ylim_trans),col=1, lty=2, main=paste("Density of p(1->2) by region, shark",ss, "(smoothed)"), xlab="Probability", las=1)
+					plot(p1to2_density_byregion_smoothed[[ ss ]][[ 1 ]], ylab="density", xlim=c(0,1), ylim=c(0,ylim_trans),col=1, lty=2, main=paste("Density of Pr(1 -> 2) by region, shark",ss, "(smoothed)"), xlab="Probability", las=1)
 				
 					if (env_obj$nregions > 1) {
 						for ( r in 2:env_obj$nregions) {
@@ -1166,7 +1215,7 @@ plotting_EKF_interp_joint <- function(env_obj) {
 					}#loop over regions		
 			
 				}
-				plot(x=-1, y=-1, xlim=range(tis), ylim=c(0,1), main=paste("Time-dependent CI of regional P{1->2}, shark",s), xlab="Number of steps in state", ylab="Probability", las=1)
+				plot(x=-1, y=-1, xlim=range(tis), ylim=c(0,1), main=paste("Time-dependent CI of regional P(1 -> 2), shark",s), xlab="Number of steps in state", ylab="Probability", las=1)
 					
 				for (r in 1:env_obj$nregions) {
 					for (tt in tis) {
@@ -1178,7 +1227,7 @@ plotting_EKF_interp_joint <- function(env_obj) {
 					}	
 				}
 				legend("topright",col=1:env_obj$nregions, lty=1, legend=paste("region", 1:env_obj$nregions), cex=.5)	
-				plot(x=-1, y=-1, xlim=range(tis), ylim=c(0,1), main=paste("Time-dependent CI of regional P{2-> 1}, shark",s), xlab="Number of steps in state", ylab="Probability", las=1)
+				plot(x=-1, y=-1, xlim=range(tis), ylim=c(0,1), main=paste("Time-dependent CI of regional Pr(2 -> 1), shark",s), xlab="Number of steps in state", ylab="Probability", las=1)
 					
 				for (r in 1:env_obj$nregions) {
 					for (tt in tis) {
@@ -1466,8 +1515,8 @@ plotting_EKF_interp_joint <- function(env_obj) {
 		cex_sim[ env_obj$first_intervals[[ s ]] ] <- 2
 
 		
-		plot(Y ~ X, data=env_obj$XY[env_obj$tags==s,,drop=FALSE], type="b", col="red", main=paste("Red=actual positions, shark ",s,", black=closest trajectory", sep=""), pch=19, asp=1, xlim=r1, ylim=r2, cex=c(2, rep(1, sum(env_obj$tags==s)-1)))
-		#plot(Y ~ X, data=env_obj$XY[env_obj$tags==s,], type="p", col="red", main=paste("Red=actual positions, shark",s,", black=closest trajectory"), pch=19, asp=1, xlim=r1, ylim=r2, cex=c(2, rep(1, sum(env_obj$tags==s)-1)))
+		plot(Y ~ X, data=env_obj$XY[env_obj$tags==s,,drop=FALSE], type="b", col="red", main=paste("Red=observed locs., black=closest trajectory, shark",s), pch=19, asp=1, xlim=r1, ylim=r2, cex=c(2, rep(1, sum(env_obj$tags==s)-1)))
+		#plot(Y ~ X, data=env_obj$XY[env_obj$tags==s,], type="p", col="red", main=paste("Red=observed positions, shark",s,", black=closest trajectory"), pch=19, asp=1, xlim=r1, ylim=r2, cex=c(2, rep(1, sum(env_obj$tags==s)-1)))
 		#xspline(env_obj$XY[env_obj$tags==s,"X"], env_obj$XY[env_obj$tags==s,"X"], border="red", lwd=2, shape=1)
 	
 		
@@ -1475,7 +1524,7 @@ plotting_EKF_interp_joint <- function(env_obj) {
 		#points(Y ~ X, data=env_obj$Xpart_history[, c("X","Y"),closest,s], type="p", col="black", pch=19, asp=1, cex=cex_sim)
 		#xspline(env_obj$Xpart_history[, "X",closest,s], env_obj$Xpart_history[, "Y",closest,s], border="black", lwd=2, shape=1)
 		
-		plot(env_obj$area_map, border="green", lwd=2, add=TRUE, axes=TRUE, las=0)
+		sp::plot(env_obj$area_map, border="green", lwd=2, add=TRUE, axes=TRUE, las=0)
 		
 		if (env_obj$nregions > 1 ) { plot.deldir(vortess, wlines="tess", cex=0, add=TRUE) }
 		text(env_obj$centroids[,1,drop=FALSE], env_obj$centroids[,2,drop=FALSE], labels=1:nrow(env_obj$centroids))
@@ -1500,16 +1549,16 @@ plotting_EKF_interp_joint <- function(env_obj) {
 			cex_sim <- rep(1, env_obj$N+1)
 			cex_sim[ env_obj$first_intervals[[ s ]] ] <- 2
 			
-			plot(Y ~ X, data=env_obj$XY[env_obj$tags==s,,drop=FALSE], type="b", col="red", main=paste("Red=actual positions, shark ",s,", black=closest trajectory (smoothed)", sep=""),
+			plot(Y ~ X, data=env_obj$XY[env_obj$tags==s,,drop=FALSE], type="b", col="red", main=paste("Red=observed locs., black=closest trajectory (smoothed), shark", s),
 			pch=19, asp=1, xlim=r1, ylim=r2, cex=c(2, rep(1, sum(env_obj$tags==s)-1)))
-			#plot(Y ~ X, data=env_obj$XY[env_obj$tags==s,], type="p", col="red", main=paste("Red=actual positions, shark",s,", black=closest trajectory (smoothed)"), pch=19, asp=1, xlim=r1, ylim=r2, cex=c(2, rep(1, sum(env_obj$tags==s)-1)))
+			#plot(Y ~ X, data=env_obj$XY[env_obj$tags==s,], type="p", col="red", main=paste("Red=observed positions, shark",s,", black=closest trajectory (smoothed)"), pch=19, asp=1, xlim=r1, ylim=r2, cex=c(2, rep(1, sum(env_obj$tags==s)-1)))
 			
 			#xspline(env_obj$XY[env_obj$tags==s,"X"], env_obj$XY[env_obj$tags==s,"X"], border="red", lwd=2, shape=1)
 		
 			lines(Y ~ X, data=env_obj$Xpart_history_smoothed[, c("X","Y"),closest,s], type="b", col="black", pch=19, asp=1, cex=cex_sim)
 			#xspline(env_obj$Xpart_history_smoothed[, "X",closest,s], env_obj$Xpart_history_smoothed[, "Y",closest,s], border="black", lwd=2, shape=1)
 		
-			plot(env_obj$area_map, border="green", lwd=2, add=TRUE, axes=TRUE, las=0)
+			sp::plot(env_obj$area_map, border="green", lwd=2, add=TRUE, axes=TRUE, las=0)
 			
 			if (env_obj$nregions > 1 ) { plot.deldir(vortess, wlines="tess", cex=0, add=TRUE) }
 			text(env_obj$centroids[,1,drop=FALSE], env_obj$centroids[,2,drop=FALSE], labels=1:nrow(env_obj$centroids))
@@ -1535,7 +1584,7 @@ plotting_EKF_interp_joint <- function(env_obj) {
 		r2 <- range(c(yobs, median_position[,"Y"]), na.rm=TRUE)
 
 		plot(Y ~ X, data=env_obj$d[ env_obj$tags==s,c("X","Y"),drop=FALSE], type="b", col="red", 
-		main=paste("Red=actual positions, black=median position, shark",s), pch=19, asp=1, xlim=r1, ylim=r2, cex=c(2, rep(1, sum(env_obj$tags==s)-1)))
+		main=paste("Red=observed locs., black=median position, shark",s), pch=19, asp=1, xlim=r1, ylim=r2, cex=c(2, rep(1, sum(env_obj$tags==s)-1)))
 		#xspline(env_obj$d[ env_obj$tags==s,"X"], d[ env_obj$tags==s,"Y"], border="red", lwd=2, shape=1)
 		
 		
@@ -1543,7 +1592,7 @@ plotting_EKF_interp_joint <- function(env_obj) {
 		#points(Y ~ X, data=median_position, type="p", col="black", pch=19, asp=1, cex=cex_sim)
 		#xspline(median_position[,"X"], median_position[,"Y"], border="black", lwd=2, shape=1)
 		
-		plot(env_obj$area_map, border="green", lwd=2, add=TRUE, axes=TRUE, las=0)
+		sp::plot(env_obj$area_map, border="green", lwd=2, add=TRUE, axes=TRUE, las=0)
 		if (env_obj$nregions > 1 ) { plot.deldir(vortess, wlines="tess", cex=0, add=TRUE) }
 		text(env_obj$centroids[,1], env_obj$centroids[,2], labels=1:nrow(env_obj$centroids))
 
@@ -1562,14 +1611,14 @@ plotting_EKF_interp_joint <- function(env_obj) {
 			r2 <- range(c(yobs, median_position[,"Y"]), na.rm=TRUE)
 
 			plot(Y ~ X, data=env_obj$d[ env_obj$tags==s,c("X","Y"),drop=FALSE], type="b", col="red",
-			main=paste("Red=actual positions, black=median position (smoothed), shark",s), pch=19, asp=1, xlim=r1, ylim=r2, cex=c(2, rep(1, sum(env_obj$tags==s)-1)))
+			main=paste("Red=observed locs., black=median position (smoothed), shark",s), pch=19, asp=1, xlim=r1, ylim=r2, cex=c(2, rep(1, sum(env_obj$tags==s)-1)))
 			#xspline(env_obj$d[ env_obj$tags==s,"X"], d[ env_obj$tags==s,"Y"], border="red", lwd=2, shape=1)
 		
 			#points(Y ~ X, data=median_position, type="p", col="black", pch=19, asp=1, cex=cex_sim)
 			#xspline(median_position[,"X"], median_position[,"Y"], border="black", lwd=2, shape=1)
 		
 			lines(Y ~ X, data=median_position, type="b", col="black", pch=19, asp=1, cex=cex_sim)
-			plot(env_obj$area_map, border="green", lwd=2, add=TRUE, axes=TRUE, las=0)
+			sp::plot(env_obj$area_map, border="green", lwd=2, add=TRUE, axes=TRUE, las=0)
 			if (env_obj$nregions > 1 ) { plot.deldir(vortess, wlines="tess", cex=0, add=TRUE) }
 			text(env_obj$centroids[,1], env_obj$centroids[,2], labels=1:nrow(env_obj$centroids))
 
@@ -1583,17 +1632,30 @@ plotting_EKF_interp_joint <- function(env_obj) {
 		r2 <- range(c(yobs, yall), na.rm=TRUE)
 
 		
-		plot(x=xall , y=yall, type="p", col="black", main=paste("All particle positions, shark",s), pch=1, asp=1, 
+		plot(x=xall , y=yall, type="p", col="black", main=paste("All particle positions (red=observed locs.), shark",s), pch=1, asp=1, 
 			 xlim=r1, ylim=r2, cex=.7, xlab="X", ylab="Y")
 		lines(Y ~ X, data=env_obj$XY[env_obj$tags==s,,drop=FALSE], type="b", col="red", pch=19, cex=c(2, rep(1, sum(env_obj$tags==s)-1))) 
-		plot(env_obj$area_map, border="green", lwd=2, add=TRUE, axes=TRUE, las=0)
+		sp::plot(env_obj$area_map, border="green", lwd=2, add=TRUE, axes=TRUE, las=0)
 		if (env_obj$nregions > 1 ) { plot.deldir(vortess, wlines="tess", cex=0, add=TRUE) }
 		text(env_obj$centroids[,1], env_obj$centroids[,2], labels=1:nrow(env_obj$centroids))
 
-
+		if (env_obj$compare_with_known) {
+		
+			true_locs_in_time_range <- (env_obj$known_regular_step_ds$tag==s) & (env_obj$known_regular_step_ds$t_intervals <= max(env_obj$shark_valid_steps[[s]]))
+		
+			plot(x=xall , y=yall, type="p", col="black", main=paste("All particle positions (red=TRUE locs.), shark",s), pch=1, asp=1, 
+			 xlim=r1, ylim=r2, cex=.7, xlab="X", ylab="Y")
+			lines(Y ~ X, data=env_obj$known_regular_step_ds[true_locs_in_time_range,,drop=FALSE], type="b", col="red", pch=19, cex=c(2, rep(1, sum(env_obj$tags==s)-1))) 
+			sp::plot(env_obj$area_map, border="green", lwd=2, add=TRUE, axes=TRUE, las=0)
+			if (env_obj$nregions > 1 ) { plot.deldir(vortess, wlines="tess", cex=0, add=TRUE) }
+			text(env_obj$centroids[,1], env_obj$centroids[,2], labels=1:nrow(env_obj$centroids))
+		
+		}
+		
 		
 		
 		if (env_obj$smoothing) {
+		
 			xall_smoothed <- env_obj$Xpart_history_smoothed[,"X",,s]
 			yall_smoothed <- env_obj$Xpart_history_smoothed[,"Y",,s]
 		
@@ -1602,21 +1664,34 @@ plotting_EKF_interp_joint <- function(env_obj) {
 
 			
 			
-			plot(x=xall_smoothed , y=yall_smoothed, type="p", col="black", main=paste("All particle positions (smoothed), shark",s), pch=1, asp=1, 
+			plot(x=xall_smoothed , y=yall_smoothed, type="p", col="black", main=paste("All particle positions (smoothed, red=observed locs.), shark",s), pch=1, asp=1, 
 				 xlim=r1, ylim=r2, cex=.7, xlab="X", ylab="Y")
 			lines(Y ~ X, data=env_obj$XY[env_obj$tags==s,,drop=FALSE], type="b", col="red", pch=19, cex=c(2, rep(1, sum(env_obj$tags==s)-1))) 
-			plot(env_obj$area_map, border="green", lwd=2, add=TRUE, axes=TRUE, las=0)
+			sp::plot(env_obj$area_map, border="green", lwd=2, add=TRUE, axes=TRUE, las=0)
 			if (env_obj$nregions > 1 ) { plot.deldir(vortess, wlines="tess", cex=0, add=TRUE) }
 			text(env_obj$centroids[,1], env_obj$centroids[,2], labels=1:nrow(env_obj$centroids))	
 		
+			if (env_obj$compare_with_known) {
+			
+				plot(x=xall_smoothed , y=yall_smoothed, type="p", col="black", main=paste("All particle positions (smoothed, red=TRUE locs.), shark",s), pch=1, asp=1, 
+				 xlim=r1, ylim=r2, cex=.7, xlab="X", ylab="Y")
+				lines(Y ~ X, data=env_obj$known_regular_step_ds[true_locs_in_time_range,,drop=FALSE], type="b", col="red", pch=19, cex=c(2, rep(1, sum(env_obj$tags==s)-1))) 
+				sp::plot(env_obj$area_map, border="green", lwd=2, add=TRUE, axes=TRUE, las=0)
+				if (env_obj$nregions > 1 ) { plot.deldir(vortess, wlines="tess", cex=0, add=TRUE) }
+				text(env_obj$centroids[,1], env_obj$centroids[,2], labels=1:nrow(env_obj$centroids))
+			
+			}
+		
 		
 		}
+		
+		
 
 		par(mfcol=c(1,ifelse(env_obj$smoothing,3,2)))
 		if (length(xobs[ ! is.na(xobs) ]) > 1) {
 		
-			image(MASS::kde2d(xobs[ ! is.na(xobs) ], yobs[ ! is.na(yobs) ], lims=c(env_obj$obs_XY_bbox[,"X"], env_obj$obs_XY_bbox[,"Y"])), main="Actual points")
-			plot(env_obj$area_map, border="green", lwd=2, add=TRUE, axes=TRUE)
+			image(MASS::kde2d(xobs[ ! is.na(xobs) ], yobs[ ! is.na(yobs) ], lims=c(env_obj$obs_XY_bbox[,"X"], env_obj$obs_XY_bbox[,"Y"])), main=paste("Observed points, shark", s))
+			sp::plot(env_obj$area_map, border="green", lwd=2, add=TRUE, axes=TRUE)
 		}
 		
 		if (length(xall[ ! is.na(xall) ]) > 1) {
@@ -1628,15 +1703,16 @@ plotting_EKF_interp_joint <- function(env_obj) {
 			if (length(xall_smoothed[ ! is.na(xall_smoothed) ]) > 1) {
 		
 				image(MASS::kde2d(xall_smoothed[ ! is.na(xall_smoothed) ], yall_smoothed[ ! is.na(yall_smoothed) ], lims=c(env_obj$obs_XY_bbox[,"X"], env_obj$obs_XY_bbox[,"Y"])), main="All simulated points (smoothed)")
-				plot(env_obj$area_map, border="green", lwd=2, add=TRUE, axes=TRUE)
+				sp::plot(env_obj$area_map, border="green", lwd=2, add=TRUE, axes=TRUE)
 			}
 		}
 		
 
 	}#loop over sharks	
 
-	grDevices::dev.off()
-	
+	if (env_obj$output_plot) {	
+		grDevices::dev.off()
+	}
 	
 	invisible(NULL)	
 }

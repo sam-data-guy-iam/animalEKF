@@ -2,11 +2,11 @@ EKF_interp_joint <- function(area_map, d,
 							 npart=100, sigma_pars, tau_pars, 
 							 mu0_pars=list(alpha=c(-4.5 ,-2), beta=c(0,0)), V0_pars=list(c(0.25, 0.25), c(0.25, 0.25)), 
 							 Errvar0=rep(list(diag(2)), 2), Errvar_df=c(20, 20), Particle_errvar0, Particle_err_df=20,							 
-							 dirichlet_init=c(9,2,2,7), maxStep=nrow(d), 
+							 dirichlet_init=c(9,2,2,7), maxStep=NULL, 
 							 delaysample=1, state_favor=c(1,1.5), nstates=2,
-							 centroids, truncate_to_map=TRUE, do_trunc_adjust=TRUE, lowvarsample=TRUE, time_radius=60*30, spat_radius=300, min_num_neibs=10,
+							 centroids=matrix(c(0,0), ncol=2), truncate_to_map=TRUE, do_trunc_adjust=TRUE, lowvarsample=TRUE, time_radius=60*30, spat_radius=300, min_num_neibs=10,
 							 interact=TRUE, interact_pars=list(mu0=0, precision0=2, known_precision=2), neff_sample=1,  time_dep_trans=FALSE, time_dep_trans_init=dirichlet_init,
-							 smoothing=FALSE, fix_smoothed_behaviors=TRUE, smooth_parameters=TRUE, reg_dt=150, max_int_wo_obs=10, resamp_full_hist=TRUE, compare_with_known=FALSE,
+							 smoothing=FALSE, fix_smoothed_behaviors=TRUE, smooth_parameters=TRUE, reg_dt=150, max_int_wo_obs=NULL, resamp_full_hist=TRUE, compare_with_known=FALSE,
 							 known_trans_prob=NULL, known_foraging_prob=NULL, known_regular_step_ds=NULL,
 							 update_eachstep=FALSE, update_params_for_obs_only=FALSE, output_plot=TRUE, output_dir=getwd()) {
 
@@ -597,9 +597,8 @@ EKF_interp_joint <- function(area_map, d,
 	print("Fraction of particles in shapefile:")
 	print(mean(in_shapefile))
 
-	if (myenv$output_plot) {
-		plotting_EKF_interp_joint(env_obj=myenv)
-	}
+
+	plotting_EKF_interp_joint(env_obj=myenv)
 
 	#now clean up a 
 	unneeded_vars <- c("mu_names", "prec_names", "Nnames", "pnames", "rnames", "state_names", "temp_neib_range",

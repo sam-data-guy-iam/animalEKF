@@ -1,13 +1,24 @@
 fix_data_EKF_interp_joint <- function(env_obj) {
 
+	
 	env_obj$d <- env_obj$d[ order(env_obj$d$date_as_sec),]
 	env_obj$first_time <- min(env_obj$d$date_as_sec)
 
-	env_obj$t_reg <- seq(from=env_obj$first_time, by=env_obj$reg_dt, length.out=min(env_obj$maxStep + 1, ceiling(1 + (env_obj$d$date_as_sec[ nrow(env_obj$d) ] - env_obj$first_time)/env_obj$reg_dt)))
+		
+	# if NULL, maxStep should be the number of steps required to simulate entire submitted data
+	max_required_steps <- ceiling(1+(env_obj$d$date_as_sec[ nrow(env_obj$d) ] - env_obj$first_time)/env_obj$reg_dt)
+
+	env_obj$maxStep <- ifelse(is.null(env_obj$maxStep), max_required_steps, max(1, min(env_obj$maxStep, max_required_steps)))
+	
+
+	env_obj$t_reg <- seq(from= env_obj$first_time, by=env_obj$reg_dt, length.out=env_obj$maxStep)
+	
 	#do this so the first interval captures the first observation at t=0
 	env_obj$t_reg[ 1 ] <- env_obj$t_reg[ 1 ] - env_obj$reg_dt * 0.0001  #.Machine$double.eps
 
-	env_obj$N <- length(env_obj$t_reg) 
+	env_obj$N <- length(env_obj$t_reg)
+
+	env_obj$max_int_wo_obs <- ifelse(is.null(env_obj$max_int_wo_obs), env_obj$N+1, env_obj$max_int_wo_obs) 	
 
 	env_obj$d <- env_obj$d[ env_obj$d$date_as_sec <= env_obj$t_reg[ env_obj$N ] ,]
 
@@ -61,6 +72,7 @@ fix_data_EKF_interp_joint <- function(env_obj) {
 			env_obj$shark_valid_steps[[ s ]] <- sort(unique(tmp))
 			#only the intervals with observations
 			env_obj$shark_intervals[[ s ]] <- sort(unique(tmp1))
+			
 		}
 		else {
 			env_obj$shark_names[ env_obj$shark_names==s ] <- NA
@@ -225,6 +237,16 @@ fix_data_EKF_interp_joint <- function(env_obj) {
 	nust <- env_obj$nstates
 	if (env_obj$compare_with_known) {
 		nust <- length(unique(env_obj$known_regular_step_ds$state.guess2, na.rm=TRUE))
+		
+		true_diffs <- unique(diff(env_obj$known_regular_step_ds$date_as_sec[ ! is.na(env_obj$known_regular_step_ds$date_as_sec)]))
+		if (length(true_diffs) > 1) {
+			stop(paste("known_regular_step_ds has multiple observed time gaps:", paste(true_diffs, collapse=", ")))	
+		}
+		else if (! (env_obj$reg_dt %in% true_diffs)) {
+			stop(paste("known_regular_step_ds has observed time gap ", true_diffs, " but argument reg_dt is ", env_obj$reg_dt, "; they must be the same"))	
+		
+		}
+	
 	}
 	
 	
