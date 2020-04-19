@@ -47,7 +47,7 @@ sharks_to_sim_update_EKF_interp_joint <- function(env_obj) {
 			
 		#wtd_mu is just wtd_x just not squared, since just one number
 		access_igamma <- cbind(1:env_obj$npart, 2*z)
-		env_obj$tau_pars[,,s][ access_igamma ]  <- env_obj$tau_pars[,,s][ access_igamma ] + 0.5*((mub0^2)/Vb0 + wtd_x2 - (env_obj$mu[access_mu_beta]^2)/env_obj$mu[access_mu_alpha])
+		env_obj$tau_pars[,,s][ access_igamma ]  <- env_obj$tau_pars[,,s][ access_igamma ] + 0.5*((mub0^2)/Vb0 + wtd_x2 - (env_obj$mu[access_mu_beta]^2)/env_obj$mu[access_V_beta])
 		env_obj$sigma_pars[,,s][ access_igamma ]  <- env_obj$sigma_pars[,,s][ access_igamma ] + 0.5*((mua0^2)/Va0 + newV["logv",]^2 - (env_obj$mu[access_mu_alpha]^2)/env_obj$mu[access_V_alpha])
 			
 		#matrix of 1s and 0s for how many of which state was observed

@@ -27,23 +27,22 @@ sharks_first_obs_EKF_interp_joint <- function(env_obj) {
 		#initial bearing approximation		
 		nobs <- nrow(env_obj$y_first)
 		first_pos <- env_obj$y_first[1, c("X","Y")]
-		if (nobs >= 3) {
-			last_pos <- env_obj$y_first[nobs, c("X","Y")]
-			initial_bearing_forward <- atan2(y=last_pos[2] - first_pos[2], x=last_pos[1] - first_pos[1])
-			anchor_loc <- last_pos
-			anchor_dist <- dist_func(center=first_pos, otherXY=last_pos)
-			anchor_time_diff <- diff(env_obj$y_first[c(1, nobs), "date_as_sec"])
-			anchor_logv <- log_safe(anchor_dist/anchor_time_diff)
-		}
-		else {
-			initial_bearing_forward <- env_obj$y_first[1, "bearing.to.east.tonext.rad"]
-			anchor_loc <- env_obj$y_first[nobs, c("X","Y")]
-			anchor_logv <- env_obj$y_first[1, "logvelocity"] #velocity between the one or two observations
-
-		}
-		anchor_time_back <- jtmp[nobs] * env_obj$reg_dt
-
+		initial_bearing_forward <- env_obj$y_first[1, "bearing.to.east.tonext.rad"]
+		initial_time_back <- jtmp[1] * env_obj$reg_dt
 		
+		# in case start time and first observed time don't match up
+		time0_estimate <- env_obj$h(mk=c(env_obj$y_first[, c("X", "Y", "logvelocity")], normalize_angle(initial_bearing_forward - pi)), dtprev=jtmp[1] * env_obj$reg_dt)
+		anchor_pos <- env_obj$y_first[nobs, c("X", "Y")]
+	
+		#use interpolation estimate location at end of first interval. 
+		#go forward a given number of steps
+		
+		end_of_interval_estimate <- env_obj$h(mk=env_obj$y_first[nobs, c("X", "Y", "logvelocity", "bearing.to.east.tonext.rad")], dtprev=(1-jtmp[nobs]) * env_obj$reg_dt)
+		dxy <- apply(rbind(end_of_interval_estimate, time0_estimate), 2, diff)
+		
+		bearing_est_to_first <- normalize_angle(atan2(x=dxy[1], y=dxy[2]))
+		
+				
 				
 		#speed and turn (unused) angles given start XY and given state
 		env_obj$sigma_draw[,,s][ cbind(1:env_obj$npart, prev_z) ] <- MCMCpack::rinvgamma(n=env_obj$npart, env_obj$sigma_pars[,,s][ cbind(1:env_obj$npart, 2*prev_z -1)], env_obj$sigma_pars[,,s][ cbind(1:env_obj$npart, 2*prev_z)])
@@ -88,20 +87,19 @@ sharks_first_obs_EKF_interp_joint <- function(env_obj) {
 			
 			#go back to beginning of interval using speed and reverse the bearing.  then take that going forward.
 			
-			mk_tmp <- c(anchor_loc, env_obj$logv_angle_mu_draw[p,"logv",prev_z[ p ],s], normalize_angle(initial_bearing_forward - pi))
+			mk_tmp <- c(first_pos, env_obj$logv_angle_mu_draw[p,"logv",prev_z[ p ],s], normalize_angle(initial_bearing_forward - pi))
 			
-			env_obj$mk_actual[,p,s] <- env_obj$f(mk=mk_tmp,
-												 new_logv=env_obj$logv_angle_mu_draw[p,"logv",prev_z[ p ], s], 
-												 theta=env_obj$logv_angle_mu_draw[p,"turn",prev_z[ p ], s], dtprev=anchor_time_back) #a_{t+1}
+			env_obj$mk_actual[,p,s] <- env_obj$f(mk=mk_tmp, new_logv=env_obj$logv_angle_mu_draw[p,"logv",prev_z[ p ], s], 
+												 theta=0, dtprev=initial_time_back) #a_{t+1}
 			
-			Fx_tmp <- env_obj$Fx(mk=mk_tmp, dtprev=anchor_time_back)
+			Fx_tmp <- env_obj$Fx(mk=mk_tmp, dtprev=initial_time_back)
 
-			env_obj$Pk_actual[,,p,s] <- as.matrix(Matrix::nearPD(Fx_tmp %*% env_obj$Pk_actual[,,p,s] %*% t(Fx_tmp) + jtmp[nobs] * env_obj$Qt[,,prev_z[ p ],p,s], ensureSymmetry=TRUE)$mat) #R_{t+1}
+			env_obj$Pk_actual[,,p,s] <- as.matrix(Matrix::nearPD(Fx_tmp %*% env_obj$Pk_actual[,,p,s] %*% t(Fx_tmp) + jtmp[1] * env_obj$Qt[,,prev_z[ p ],p,s], ensureSymmetry=TRUE)$mat) #R_{t+1}
 			
 					
 			if (env_obj$truncate_to_map) {
 				
-				tmp <- reject_sampling(mu=env_obj$mk_actual[,p,s], cmat=env_obj$Pk_actual[,,p,s], prev_val=c(env_obj$y_first[1, c("X","Y")], env_obj$logv_angle_mu_draw[p,"logv",prev_z[ p ], s], initial_bearing_forward - pi), obj=env_obj)
+				tmp <- reject_sampling(mu=env_obj$mk_actual[,p,s], cmat=env_obj$Pk_actual[,,p,s], prev_val=c(time0_estimate, env_obj$logv_angle_mu_draw[p,"logv",prev_z[ p ], s], normalize_angle(initial_bearing_forward - pi)), obj=env_obj)
 				env_obj$Xpart_history[ env_obj$i, c("X","Y","logv","bearing_rad"), p, s] <- tmp$val
 				num_reject[ p ] <- tmp$iter
 			
@@ -110,17 +108,23 @@ sharks_first_obs_EKF_interp_joint <- function(env_obj) {
 				env_obj$Xpart_history[ env_obj$i, c("X","Y","logv","bearing_rad"), p, s] <-  mvtnorm::rmvnorm(n=1, mean=env_obj$mk_actual[,p,s], sigma=env_obj$Pk_actual[,,p,s])  
 			}
 
+			# now reset Fx and Pk to refer to movement forward
+			
+			env_obj$mk_actual["bearing_rad",p,s] <- normalize_angle(env_obj$mk_actual["bearing_rad",p,s] + pi)
+			
+			Fx_tmp <- env_obj$Fx(mk=env_obj$mk_actual[,p,s], dtprev=env_obj$reg_dt)
+
+			env_obj$Pk_actual[,,p,s] <- as.matrix(Matrix::nearPD(Fx_tmp %*% env_obj$Pk_actual[,,p,s] %*% t(Fx_tmp) + env_obj$Qt[,,prev_z[ p ],p,s], ensureSymmetry=TRUE)$mat) #R_{t+1}
+	
 
 		}#loop over part
 		
 		#turn 180 degrees around to go the correct original direction next time
-		env_obj$mk_actual["bearing_rad",,s] <- normalize_angle(env_obj$mk_actual["bearing_rad",,s] + pi)
 
 		
 		#normalize angle and correct since this is the direction moving forward
 		env_obj$Xpart_history[ env_obj$i, "bearing_rad", , s] <-  normalize_angle(env_obj$Xpart_history[ env_obj$i, "bearing_rad", , s] + pi)
 
-			
 		if (env_obj$truncate_to_map) {
 			env_obj$reject_samp_hist[ env_obj$i,,s] <- c(mean(num_reject), median(num_reject))
 		}
@@ -133,9 +137,8 @@ sharks_first_obs_EKF_interp_joint <- function(env_obj) {
 		err_tmp <- c()
 		
 		for (y in 1:nrow(env_obj$y_first)) {
-				err_tmp <- cbind(err_tmp,  dist_func(center=env_obj$y_first[ y, c("X","Y"), drop=FALSE], otherXY=t(apply(env_obj$Xpart_history[env_obj$i, c("X","Y","logv","bearing_rad"),,s], 2, function(x) env_obj$h(mk=x, dtprev=jtmp[y] * env_obj$reg_dt)))))
+			err_tmp <- cbind(err_tmp,  dist_func(center=env_obj$y_first[ y, c("X","Y"), drop=FALSE], otherXY=t(apply(env_obj$Xpart_history[env_obj$i, c("X","Y","logv","bearing_rad"),,s], 2, function(x) env_obj$h(mk=x, dtprev=jtmp[y] * env_obj$reg_dt)))))
 		}
-		
 		env_obj$error_beforesamp_quantiles[ env_obj$i,,s] <-  quantile(rowSums(err_tmp), p=c(.1, .5, .9))
 		
 	}

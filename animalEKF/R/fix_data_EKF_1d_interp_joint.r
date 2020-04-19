@@ -2,12 +2,32 @@ fix_data_EKF_1d_interp_joint <- function(env_obj) {
 
 
 	env_obj$d <- env_obj$d[ order(env_obj$d$date_as_sec),]
-	env_obj$first_time <- min(env_obj$d$date_as_sec)
+	env_obj$first_time <- min(env_obj$d$date_as_sec)	
+	env_obj$shark_names <- as.character(sort(unique(env_obj$d$tag)))
+
+	# if NULL, maxStep should be the number of steps required to simulate entire submitted data
+	observed_intervals <- lapply(env_obj$shark_names, function(s) unique(env_obj$d$t_intervals[ env_obj$d$tag==s ]))
+	names(observed_intervals) <- env_obj$shark_names
+	observed_intervals <- observed_intervals[sapply(observed_intervals, function(x) length(x) >= 3)]
+	
+	if (length(observed_intervals) == 0) {
+		stop(paste("No observed animals have 3 or more intervals of length", env_obj$reg_dt, "with observations\nNeed to have more data or shorted reg_dt"))
+	}
+	
+	third_steps <- sapply(observed_intervals, function(x) x[3])
+
+	if (! any(third_steps <= env_obj$max_int_wo_obs)) {
+		print(observed_intervals)
+		stop(paste("No observed animals have consecutive observed intervals separated by less than", env_obj$max_int_wo_obs, "intervals.\nNeed to increase max_int_wo_obs to at least", min(third_steps))) 
+	}
+
+	min_intervals_needed <- min(third_steps[third_steps <= env_obj$max_int_wo_obs])
+
 	
 	# if NULL, maxStep should be the number of steps required to simulate entire submitted data
 	max_required_steps <- ceiling(1+(env_obj$d$date_as_sec[ nrow(env_obj$d) ] - env_obj$first_time)/env_obj$reg_dt)
 
-	env_obj$maxStep <- ifelse(is.null(env_obj$maxStep), max_required_steps, max(1, min(env_obj$maxStep, max_required_steps)))
+	env_obj$maxStep <- ifelse(is.null(env_obj$maxStep), max_required_steps, max(min_intervals_needed, min(env_obj$maxStep, max_required_steps)))
 	
 
 	env_obj$t_reg <- seq(from= env_obj$first_time, by=env_obj$reg_dt, length.out=env_obj$maxStep)

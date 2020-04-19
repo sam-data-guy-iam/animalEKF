@@ -98,7 +98,7 @@ smoothing_EKF_interp_joint <- function(env_obj) {
 				#set up covariance matrices
 				if (env_obj$nstates>1) {
 					for (p in 1:env_obj$npart) {
-						transition_draws[ p, ] <- MCMCpack::rdirichlet(n=1, alpha=env_obj$transition_mat[[ s ]][[ p ]]$dirichlet_pars[ regions[ p ], c(2*z_prev[ p ]-1, 2*z_prev[ p ]) ])#*state_favor 
+						transition_draws[ p, ] <- MCMCpack::rdirichlet(n=1, alpha=env_obj$transition_mat[[ s ]][[ p ]]$dirichlet_pars[ regions[ p ], c(2*z_prev[ p ]-1, 2*z_prev[ p ]) ]) * env_obj$state_favor 
 					}
 				}
 				
@@ -129,7 +129,7 @@ smoothing_EKF_interp_joint <- function(env_obj) {
 				if (env_obj$nstates>1) {
 					for (p in 1:env_obj$npart) {
 						
-						transition_draws[ p, ] <- MCMCpack::rdirichlet(n=1, alpha=env_obj$transition_mat_smoothed[[ s ]][[ p ]]$dirichlet_pars[ regions[ p ], z_curr[ p ] + c(0,2) ])#*state_favor 
+						transition_draws[ p, ] <- MCMCpack::rdirichlet(n=1, alpha=env_obj$transition_mat_smoothed[[ s ]][[ p ]]$dirichlet_pars[ regions[ p ], z_curr[ p ] + c(0,2) ]) * env_obj$state_favor 
 					}
 				}
 				

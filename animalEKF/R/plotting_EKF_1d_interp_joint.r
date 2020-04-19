@@ -645,7 +645,7 @@ plotting_EKF_1d_interp_joint <- function(env_obj) {
 				}
 				
 				points(x=trans_prob_actual[,1], y=1:env_obj$nstates, col=1:env_obj$nstates, pch=1) 	
-				legend("topright", col=c(1,1:env_obj$nstates), lty=c(1,2,2), legend=c("Pr(foraging)","Pr(1 -> 2)", "p(2 -> 1)"), cex=.5)
+				legend("topright", col=c(1,1:env_obj$nstates), lty=c(1,2,2), legend=c("Pr(foraging)","Pr(1 -> 2)", "Pr(2 -> 1)"), cex=.5)
 		
 			}#end looping over sharks
 			

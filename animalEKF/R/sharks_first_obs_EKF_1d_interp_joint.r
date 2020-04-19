@@ -24,19 +24,22 @@ sharks_first_obs_EKF_1d_interp_joint <- function(env_obj) {
 		
 		#initial bearing approximation		
 		nobs <- nrow(env_obj$y_first)
-
 		first_pos <- env_obj$y_first[1, "X"]
-		anchor_loc <- env_obj$y_first[nobs, "X"]
+		initial_time_back <- jtmp[1] * env_obj$reg_dt
 
-		if (nobs >= 3) {
-			anchor_dist <- first_pos - anchor_loc #purposely reverse, so we are going in the opposite direction, to the beginning
-			anchor_time_diff <- diff(env_obj$y_first[c(1, nobs), "date_as_sec"])
-			anchor_vel <- anchor_dist/anchor_time_diff
-		}
+		initial_velocity_forward <- env_obj$y_first[1, "logvelocity"]
+	
+		# in case start time and first observed time don't match up
+		time0_estimate <- env_obj$h(mk=c(first_pos, -1 * initial_velocity_forward), dtprev=initial_time_back)
+		anchor_pos <- env_obj$y_first[nobs, "X"]
 
-		anchor_time_back <- jtmp[nobs] * env_obj$reg_dt
+		#use interpolation estimate location at end of first interval. 
+		#go forward a given number of steps
 		
-
+		end_of_interval_estimate <- env_obj$h(mk=env_obj$y_first[nobs, c("X", "logvelocity")], dtprev=(1-jtmp[nobs]) * env_obj$reg_dt)
+		
+		velocity_est_to_first <- (end_of_interval_estimate - time0_estimate)/env_obj$reg_dt
+		
 		#speed and turn (unused) angles given start XY and given state
 		sigma_draw <- MCMCpack::rinvgamma(n=env_obj$npart, env_obj$sigma_pars[,,s][ cbind(1:env_obj$npart, 2*prev_z -1)], env_obj$sigma_pars[,,s][ cbind(1:env_obj$npart, 2*prev_z)])
 		
@@ -62,15 +65,15 @@ sharks_first_obs_EKF_1d_interp_joint <- function(env_obj) {
 		
 			#take the logvelocity mu back fraction of sectonds to beginning of interval, then use that log-velocity to go forwards next.
 			
-			mk_tmp <- c(anchor_loc, -1 * env_obj$logv_angle_mu_draw[p,"logv",prev_z[ p ], s])
+			mk_tmp <- c(first_pos, env_obj$logv_angle_mu_draw[p,"logv",prev_z[ p ],s])
 
-			env_obj$mk_actual[,p,s]  <- env_obj$f(mk=mk_tmp, new_logv= env_obj$logv_angle_mu_draw[p,"logv",prev_z[ p ], s], dtprev=anchor_time_back) #a_{t+1}
+			env_obj$mk_actual[,p,s] <- env_obj$f(mk=mk_tmp, new_logv= env_obj$logv_angle_mu_draw[p,"logv",prev_z[ p ], s], dtprev=initial_time_back) #a_{t+1}
 			#print(mk_actual[,p,s])
-			Fx_tmp <- env_obj$Fx(mk=mk_tmp, dtprev=anchor_time_back)
+			Fx_tmp <- env_obj$Fx(mk=mk_tmp, dtprev=initial_time_back)
 			#print(Fx_tmp)
 			#print(Fx_tmp%*%Pk_actual[,,p,s]%*%t(Fx_tmp) + Qt[,,p])
 			
-			env_obj$Pk_actual[,,p,s]  <- as.matrix(Matrix::nearPD(Fx_tmp %*% env_obj$Pk_actual[,,p,s]  %*% t(Fx_tmp) + jtmp[nobs] * env_obj$Qt[,,prev_z[ p ],p,s] , ensureSymmetry=TRUE)$mat) #R_{t+1}
+			env_obj$Pk_actual[,,p,s]  <- as.matrix(Matrix::nearPD(Fx_tmp %*% env_obj$Pk_actual[,,p,s]  %*% t(Fx_tmp) + jtmp[1] * env_obj$Qt[,,prev_z[ p ],p,s] , ensureSymmetry=TRUE)$mat) #R_{t+1}
 			
 
 			#Xpart_history[ i, "logv",p,s ] <- logv_angle_draw[p,"logv",prev_z[ p ]]
@@ -82,7 +85,10 @@ sharks_first_obs_EKF_1d_interp_joint <- function(env_obj) {
 
 			env_obj$Xpart_history[ env_obj$i, c("X","logv"), p, s]  <- mvtnorm::rmvnorm(n=1, mean=env_obj$mk_actual[,p,s] , sigma=env_obj$Pk_actual[,,p,s] )
 			
-			
+			Fx_tmp <- env_obj$Fx(mk=env_obj$mk_actual[,p,s], dtprev=env_obj$reg_dt)
+
+			env_obj$Pk_actual[,,p,s] <- as.matrix(Matrix::nearPD(Fx_tmp %*% env_obj$Pk_actual[,,p,s] %*% t(Fx_tmp) + env_obj$Qt[,,prev_z[ p ],p,s], ensureSymmetry=TRUE)$mat) #R_{t+1}
+	
 		}#loop over part
 		
 
