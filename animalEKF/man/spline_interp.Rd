@@ -8,8 +8,10 @@ Bezier spline interpolation of observations.
 Calculate a Bezier spline interpolation of irregular observations to regular-length time intervals.
 }
 \usage{
-spline_interp(di, area_map=NULL, reg_dt=120, max_dt_wo_obs=60*30, maxStep=NULL, 
-              centroids, nstates=2, spline_deg=3, split_logv=-3)
+spline_interp(di, area_map=NULL, t_reg=NULL, reg_dt=120,
+              max_dt_wo_obs=60*30, maxStep=NULL, 
+              centroids=matrix(c(0,0), ncol=2),
+              nstates=2, spline_deg=3, split_logv=-3)
 }
 %- maybe also 'usage' for other objects documented here.
 \arguments{
@@ -21,6 +23,11 @@ This can be generated from \code{sim_trajectory_joint} with \code{gen_irreg=TRUE
 }
  \item{area_map}{
 Shapefile that all interpolated points should be inside of.
+}
+  \item{t_reg}{
+Desired time steps (must have a constant difference) to interpolate to.  If is given, the default value of
+\code{reg_dt} is overridden.  Will be truncated to the set of values within the range of observed values of
+\code{di$date_as_sec}.
 }
   \item{reg_dt}{
 Length in seconds of each regular interval.

@@ -12,7 +12,7 @@ EKF_1d_interp_joint(d, npart=100, sigma_pars,
                     alpha0_pars=list(mu0=c(5, 9), V0=c(0.25, 0.25)),
                     Errvar0=rep(list(5), 2), Errvar_df=c(20, 20), 
                     Particle_errvar0, Particle_err_df=20, delaysample=1,
-                    dirichlet_init=c(10,3,3,8), maxStep=nrow(d), 
+                    dirichlet_init=c(10,3,3,8), maxStep=NULL, 
                     state_favor=c(1,1.5), nstates=2,
                     lowvarsample=FALSE, time_radius=60*30, spat_radius=300,
                     min_num_neibs=10, interact=TRUE, 
@@ -21,19 +21,20 @@ EKF_1d_interp_joint(d, npart=100, sigma_pars,
                     neff_sample=1, time_dep_trans=FALSE, 
                     time_dep_trans_init=dirichlet_init, smoothing=FALSE, 
                     fix_smoothed_behaviors=TRUE, smooth_parameters=TRUE,
-                    reg_dt=150, max_int_wo_obs=15,
+                    reg_dt=120, max_int_wo_obs=NULL,
                     resamp_full_hist=TRUE, compare_with_known=FALSE,
                     known_trans_prob=NULL, known_foraging_prob=NULL,
                     known_regular_step_ds=NULL, update_eachstep=FALSE,
-					update_params_for_obs_only=FALSE,
-                    output_plot=TRUE, output_dir=getwd())
+                    update_params_for_obs_only=FALSE,
+                    output_plot=TRUE, loc_pred_plot_conf=0.5,
+                    output_dir=getwd(), pdf_prefix="EKF_1D")
 
 					
 }
 %- maybe also 'usage' for other objects documented here.
 \arguments{
   \item{d}{
-Dataset of observations, with required variable columns: tag, X, logvelocity, date_as_sec, time_to_next, state.guess2, prev.guess2.
+Dataset of observations, with required variable columns: tag, X, velocity, date_as_sec, time_to_next, state.guess2, prev.guess2.
 }
   \item{npart}{
 Number of particles to be used in simulation.
@@ -60,7 +61,8 @@ Degree of freedom of \code{Particle_errvar0}.
 List of 4-element vectors specifying Dirichlet parameters for transition matrices for each region.  Will be replicated to equal number of regions.
 }
   \item{maxStep}{
-Maximum number of regular steps to simulate.
+Maximum number of regular steps to simulate.  Default is NULL, meaning that the number of regular steps simulated will be the minimum number
+required to cover the range of observed data.  If not NULL, maxStep will be the minimum of the submitted value or the the above.
 }
 
   \item{delaysample}{
@@ -117,7 +119,9 @@ Logical.  If TRUE, when performing smoothing, resample the parameters theta as w
 Length in seconds of each regular interval.
 }
   \item{max_int_wo_obs}{
-When simulating, the maximum number of intervals of length \code{reg_dt} without observations for a given shark that we will simulate.  If this is exceeded, algorithm will wait until next observation and start from there.  
+When simulating, the maximum number of intervals of length \code{reg_dt} without observations for a given shark that we will simulate.  If this is exceeded, algorithm will wait until next observation and start from there.
+Default is NULL, meaning it will be set to \code{maxStep}, and thus the algorithm will continue simulating without 
+stopping, regardless of when the next observation is. 
 }
   \item{resamp_full_hist}{
 Logical.  If TRUE, resample the full particle history, not just all particle times since the last observation, each time resampling occurs.
@@ -132,7 +136,10 @@ If \code{nstates}=2, a matrix of row 2 where each column is the behavior transit
 If \code{nstates}=2, a matrix of the foraging probabilities for each region. 
 }
   \item{known_regular_step_ds}{
-If \code{compare_with_known}=TRUE, the dataset of the original regular-step trajectories. 
+If \code{compare_with_known}=TRUE, the dataset of the original regular-step trajectories. Note: this dataset needs to have 
+column \code{date_as_sec} (date in seconds) and time gap \code{reg_dt} be the same as the set of regular-step intervals
+that the EKF is trying to estimate movement at.  Otherwise, the simulated movement locations and the true ones will not
+correspond.
 }
   \item{update_eachstep}{
 Logical.  If TRUE, for regular steps without observations, update the movement parameters based on the simulated movements.  If FALSE, parameters are
@@ -149,6 +156,12 @@ at observations for the set of simulated steps.
 }
   \item{output_plot}{
 Logical.  If yest, a set of diagnostic plots will be printed to a file in \code{output_dir}.
+}
+  \item{loc_pred_plot_conf}{
+Numeric.  Confidence level of confidence interval for location prediction error to plot in step-wise diagnostics.
+}
+  \item{pdf_prefix}{
+String prefix for output PDF filename, if \code{output_plot = TRUE}.  Filename will be the prefix followed by a timestamp.
 }
   \item{output_dir}{
 Directory for output PDF of diagnostic plots.
@@ -185,11 +198,12 @@ If observed gaps are larger than \code{max_int_wo_obs}, the shark's trajectory w
 resampling weights.  For \code{lambda_matrix}, \code{Xpart_history}, and other estimated outputs, the entire particle history is resampled.}
 \item{resample_history}{Fraction of unique particles that are resampled at each regular step over the history.}
 \item{transition_mat}{Estimated transition probability matrix parameters for Dirichlet distribution.  If \code{nstates==1}, is meaningless.}
-\item{error_beforesamp_quantiles}{For each regular step \code{i}, the quantiles of summed prediction errors before each round of sampling, across history.}
-\item{error_final_allpart}{For each regular step \code{i}, the sum of prediction errors for any obserations in that interval.}
+\item{error_beforesamp}{For each regular step \code{i} with an observation, the quantiles of summed prediction errors before each round of resampling, across history.}
+\item{error_beforesamp_quantiles}{Quantiles of \code{error_beforesamp_allpart} across history.}
+\item{error_final_allpart}{For each regular step \code{i} with an observation, the sum of prediction errors for any obserations in that interval (final after resampling).}
 \item{error_final_quantiles}{Quantiles of \code{error_final_allpart} across history.}
-\item{error_true_allpart}{If \code{compare_with_known}, for each regular step \code{i}, the sum of prediction errors for any true locations in that interval.}
-\item{error_true_quantiles}{If \code{compare_with_known}, quantiles of \code{error_final_true_allpart} across history.}
+\item{error_true_allpart}{If \code{compare_with_known == TRUE}, for each regular step \code{i}, the sum of prediction errors for any true locations in that interval.}
+\item{error_true_quantiles}{If \code{compare_with_known == TRUE}, quantiles of \code{error_final_true_allpart} across history.}
 
 The following inputted parameters are returned :
 \item{npart}{}
@@ -214,34 +228,40 @@ The following are returned if \code{nstates > 1}:
 \item{region_trans_draws}{Posterior draws of behavior switching probabilities from \code{transition_mat}. For 2-D, this is separately by region, if
 there are multiple regions.}
 
-In addition, the following are returned if \code{interact==TRUE}:
+In addition, the following are returned if \code{compare_with_known = TRUE}:
+\item{error_final_true_allpart}{Errors from estimating true locations from particle locations (at the same times).}
+\item{error_final_true_quantiles}{Quantiles of \code{error_final_true_allpart} across history.}
+\item{euclidean_estimate_true_from_obs}{Estimates of true locations by Euclidean interpolation from observations}
+\item{error_euclidean_estimate_true_from_obs}{Euclidean error from \code{euclidean_estimate_true_from_obs} compared to true locations from \code{known_regular_step_ds}.}
+
+In addition, the following are returned if \code{interact = TRUE}:
 \item{spatial_interact_pars}{Estimated parameters for sharks' tendency to be influenced by other neighboring sharks in determining behavior.}
 \item{interact_mu_draws}{Posterior sampled values of interaction mu parameter.}
 \item{interact_intensity_draw}{Posterior sampled values of interaction tendency multiplier, at different proportions of neighboring sharks with second behavior type.}
 \item{spatial_interact_mu_history}{History of simulated values of interaction mu.}
 \item{spatial_interact_intensity_history}{History of simulated values of interaction tendency multiplier.}
 
-The following are returned if \code{smoothing==TRUE}:
+The following are returned if \code{smoothing = TRUE}:
 \item{Xpart_history_smoothed}{Resampled values of \code{Xpart_history} by reverse smoothing resampling (see Carvalho et al).}
 \item{error_smoothed_allpart}{For each regular step \code{i}, the sum of prediction errors for smoothed particles for any obserations in that interval.}
 \item{error_smoothed_quantiles}{Quantiles of \code{error_smoothed_allpart} across history.}
 
-In addition, if \code{smooth_parameters==TRUE}:
+In addition, if \code{smooth_parameters = TRUE}:
 \item{param_draws_smoothed}{Posterior sampled values of mean of velocity (or, for 2-D, log-velocity) after resampling by smoothing.}
 \item{variance_draws_smoothed}{Posterior sampled values of variance of velocity (or, for 2-D, log-velocity) after resampling by smoothing.}
 \item{transition_mat_smoothed}{Estimated transition probability matrix parameters for Dirichlet distribution after resampling by smoothing.}
 
-In addition, if \code{smooth_parameters==TRUE} and \code{interact==TRUE}:
+In addition, if \code{smooth_parameters = TRUE} and \code{interact = TRUE}:
 \item{spatial_interact_pars_smoothed}{Estimated parameters for sharks' tendency to be influenced by other neighboring sharks in determining behavior, after resampling by smoothing.}
 \item{interact_mu_draws_smoothed}{Posterior sampled values of interaction mu parameter, after resampling by smoothing.}
 \item{interact_intensity_draw_smoothed}{Posterior sampled values of interaction tendency multiplier, at different proportions of neighboring sharks with second behavior type, after resampling by smoothing.}
 
-
-In addition to smoothing, if \code{compare_with_known==TRUE}:
+In addition to smoothing, if \code{compare_with_known = TRUE}:
 \item{error_smoothed_true_allpart}{For each regular step \code{i}, the sum of prediction errors for smoothed particles for any obserations in that interval.}
 \item{error_smoothed_true_quantiles}{Quantiles of \code{error_smoothed_true_allpart} across history.}
 
-In addition to smoothing, if \code{smoothing==TRUE} but \code{fix_smoothed_behaviors==FALSE} (smoothed behaviors allowed to change from filtering):
+
+In addition to smoothing, if \code{smoothing = TRUE} but \code{fix_smoothed_behaviors = FALSE} (smoothed behaviors allowed to change from filtering):
 \item{mu_smoothed}{Corresponding version of \code{mu} after resampling by smoothing.}
 \item{sigma_pars_smoothed}{Corresponding version of \code{sigma_pars} after resampling by smoothing.}
 \item{agree_table_smoothed}{Corresponding version of \code{agree_table} for smoothed states \code{lambda_matrix_smoothed}.}

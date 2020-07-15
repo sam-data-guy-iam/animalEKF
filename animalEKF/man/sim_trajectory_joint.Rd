@@ -10,21 +10,22 @@ Simulation and interpolation of trajectories.
 \code{interp_trajectory_joint} interpolates regular steps to irregular ones drawn from a log-normal distribution.
 }
 \usage{
-sim_trajectory_joint(area_map, centroids, 
+sim_trajectory_joint(area_map, centroids=matrix(c(0,0), ncol=2), 
                      transition_matrices=list(matrix(c(10,3,2,9), 
                      ncol=2, byrow=TRUE)), 
                      mu0_pars=list(alpha=c(-4 ,-1.6), beta=c(0,0)), 
                      var0_pars=list(alpha=c(1.6,0.16), beta=c(2,0.5)), 
-                     N=100, nstates=2, reg_dt=NULL, gen_irreg=TRUE, 
-                     one_d=FALSE, dt_lnorm_mu=log(120), dt_lnorm_sd=1, 
-                     starting_polygon=area_map, nsharks=1, interact=FALSE, 
+                     N=100, nstates=2, reg_dt=120, gen_irreg=TRUE, 
+                     one_d=FALSE, dt_lnorm_mu=log(120), dt_lnorm_sd=1,
+                     dt_vals=NULL, starting_polygon=area_map,
+                     nsharks=1, interact=FALSE, 
                      interact_pars=list(interacting_sharks=c(1:nsharks),
                      time_radius=60*30, spat_radius=200, min_num_neibs=10,
-                     eta_mu=c(2,1), rho_sd=c(0.75, 0.75)), time_dep_trans=FALSE,
-                     trans_alpha=c(1, 1.5)) 
+                     eta_mu=c(2,1), rho_sd=c(0.75, 0.75)),
+                     time_dep_trans=FALSE, trans_alpha=c(1, 1.5)) 
 
 interp_trajectory_joint(d, nstates, one_d, dt_lnorm_mu=5, dt_lnorm_sd=1, 
-                        dt_vals=NULL, centroids)
+                        dt_vals=NULL, centroids=matrix(c(0,0), ncol=2))
 
 
 
@@ -175,7 +176,8 @@ sim_4sharks <- sim_trajectory_joint(area_map=bolsachica, centroids=regions,
                                     one_d=FALSE, starting_polygon=vtiles[ 1 ],
                                     interact=TRUE, 
                                     interact_pars=list(interacting_sharks=c(3:4),
-                                    time_radius=60*30, spat_radius=150, min_num_neibs=10,
+                                    time_radius=60*30, spat_radius=150,
+                                    min_num_neibs=10,
                                     eta_mu=c(2,1), rho_sd=c(0.75, 0.75)),
                                     time_dep_trans=FALSE, 
                                     dt_lnorm_mu=log(120), dt_lnorm_sd=0.4) 
@@ -187,8 +189,8 @@ shark_colors <- 2:5
 names(shark_colors) <- shark_names
 
 
-plot(bolsachica, main="Full trajectories")
-plot(vortess, wlines="tess", add=TRUE)
+sp::plot(bolsachica, main="Full trajectories")
+plot.deldir(vortess, wlines="tess", add=TRUE)
 
 for (ss in shark_names) {
     lines(sim_4sharks$d[,c("X","Y"), ss], col=shark_colors[ss])
@@ -212,8 +214,8 @@ interp_ds <- interp_trajectory_joint(d=sim_4sharks$d, nstates=2,
 
 
 #now plot observed ones, may differ
-plot(bolsachica, main="Observed trajectories")
-plot(vortess, wlines="tess", add=TRUE)
+sp::plot(bolsachica, main="Observed trajectories")
+plot.deldir(vortess, wlines="tess", add=TRUE)
 
 for (ss in shark_names) {
     lines(interp_ds[ interp_ds$tag == ss ,c("X","Y")], col=shark_colors[ss])
