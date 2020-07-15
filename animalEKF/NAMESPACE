@@ -10,6 +10,7 @@ importFrom(grDevices, as.raster, recordPlot, replayPlot, dev.off, gray.colors, p
 importFrom(colorspace, rainbow_hcl)
 importFrom(rgdal, readOGR)
 importFrom(png, readPNG)
+# importFrom(matrixcalc, is.positive.semi.definite, is.positive.definite)
 #importFrom(stats, rlnorm)
 importFrom(rgeos, gDifference, gIntersection, gIsEmpty, gContains, gDistance)
 #importFrom(sp, Polygon, SpatialPoints, Polygons, point.in.polygon, SpatialPolygonsDataFrame, SpatialPointsDataFrame, 
