@@ -3,7 +3,7 @@ sharks_to_sim_update_EKF_1d_interp_joint <- function(env_obj) {
 	for (s in env_obj$sharks_to_sim) {
 
 		z <- env_obj$lambda_matrix[, env_obj$i, s] 
-		newV <- env_obj$Xpart_history[env_obj$i, "logv",, s] 
+		newV <- env_obj$Xpart_history[env_obj$i, "velocity",, s] 
 		
 		access_mu <- access_V <- cbind(env_obj$state_names[z], "mu", env_obj$pnames, s)
 		access_V[,2] <- "V"	
@@ -31,15 +31,17 @@ sharks_to_sim_update_EKF_1d_interp_joint <- function(env_obj) {
 		
 		
 		
-		err_tmp <- env_obj$Xpart_history[ env_obj$i, "X",, s]  - env_obj$mk_actual["X",, s]  # matrix(mk_prev["X",,,s], nrow=nstates, ncol=npart)[ cbind(z, 1:npart) ]
+		#err_tmp <- keep_finite(env_obj$Xpart_history[ env_obj$i, "X",, s]  - env_obj$mk_actual["X",, s])  # matrix(mk_prev["X",,,s], nrow=nstates, ncol=npart)[ cbind(z, 1:npart) ]
+
+		err_tmp <- keep_finite(env_obj$mk_actual_history[env_obj$i, "X",,s] - env_obj$Xpart_history[env_obj$i,"X",,s])
+
 		
-		
-		env_obj$SSquare_particle[1, 1, , s]  <- env_obj$SSquare_particle[1, 1, , s]  + err_tmp^2
+		env_obj$SSquare_particle[1, 1, , s]  <- keep_finite(env_obj$SSquare_particle[1, 1, , s]  + keep_finite(err_tmp^2))
 
 									
 		for (p in 1:env_obj$npart) {
 			
-			env_obj$Particle_errvar[[ s ]][[ p ]]$sig <- as.matrix(Matrix::nearPD(env_obj$Particle_errvar0 + env_obj$SSquare_particle[,,p,s] , ensureSymmetry=TRUE)$mat)
+			env_obj$Particle_errvar[[ s ]][[ p ]]$sig <- keep_finite(as.matrix(Matrix::nearPD(keep_finite(env_obj$Particle_errvar0 + env_obj$SSquare_particle[,,p,s]), ensureSymmetry=TRUE)$mat))
 			env_obj$Particle_errvar[[ s ]][[ p ]]$dof <- env_obj$Particle_errvar[[ s ]][[ p ]]$dof + 1 
 			
 			if (env_obj$nstates > 1) {

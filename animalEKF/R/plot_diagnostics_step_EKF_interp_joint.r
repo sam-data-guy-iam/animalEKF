@@ -14,8 +14,17 @@ plot_diagnostics_step_EKF_interp_joint <- function(env_obj) {
 	
 	q1 <- qnorm(p=0.01, mean=env_obj$mu[,"alpha","mu",,other_sharks], sd=sqrt(env_obj$sigma_draw[,,other_sharks]))
 	q99 <- qnorm(p=0.99, mean=env_obj$mu[,"alpha","mu",,other_sharks], sd=sqrt(env_obj$sigma_draw[,,other_sharks]))
+	
+	
+	# pl_logv <- c(seq(from=max(env_obj$logvelocity_truncate[1], min(q1, na.rm=TRUE)), to=min(env_obj$logvelocity_truncate[2], max(q99, na.rm=TRUE)), length.out=100), env_obj$mu[,"alpha","mu",,other_sharks])
+	# pl_logv <- c(seq(from=max(min(q1, na.rm=TRUE), env_obj$logvelocity_truncate[1]),  to=min(max(q99, na.rm=TRUE), env_obj$logvelocity_truncate[2]), length.out=100), env_obj$mu[,"alpha","mu",,other_sharks])
+	logv_truncate_bounds <- env_obj$logvelocity_truncate + c(-1/3,1/3)*diff(env_obj$logvelocity_truncate)
+	# make sure the mean (the max value) ends in the vector
+	pl_logv <- c(seq(from=max(min(q1, na.rm=TRUE), logv_truncate_bounds[1]),  to=min(max(q99, na.rm=TRUE), logv_truncate_bounds[2]), length.out=100), env_obj$mu[,"alpha","mu",,other_sharks])
 
-	pl_logv <- c(seq(from=min(q1, na.rm=TRUE), to=max(q99, na.rm=TRUE), length.out=100), env_obj$mu[,"alpha","mu",,other_sharks])
+	#pl_logv <- c(seq(from=min(q1, na.rm=TRUE),  to=max(q99, na.rm=TRUE), length.out=100), env_obj$mu[,"alpha","mu",,other_sharks])
+
+
 	pl_logv <- sort(pl_logv[ ! is.na(pl_logv) ])
 	
 	pl_turn <- seq(-pi, pi, .1)	
@@ -37,7 +46,7 @@ plot_diagnostics_step_EKF_interp_joint <- function(env_obj) {
 			for (p in 1:env_obj$npart) {
 				for (k in 1:env_obj$nstates) {
 					
-					lines(ellipse::ellipse(x=env_obj$Pk_prev[,,k,p,ss], centre=env_obj$mk_prev[1:2,k,p,ss], level=0.5), lwd=.25, col=k, type="l")
+					lines(ellipse::ellipse(x=env_obj$Pk_prev[,,k,p,ss], centre=env_obj$mk_prev[1:2,k,p,ss], level=env_obj$loc_pred_plot_conf), lwd=.25, col=k, type="l")
 					
 				}		
 			}
@@ -46,7 +55,7 @@ plot_diagnostics_step_EKF_interp_joint <- function(env_obj) {
 			for (p in 1:env_obj$npart) {
 				for (k in 1:env_obj$nstates) {
 					for (y in 1:env_obj$yobs_sharks[ ss ]) {
-					   lines(ellipse::ellipse(x=env_obj$SigY[[ ss ]][,,y,k,p], centre=env_obj$MuY[[ ss ]][,y,k,p], level=0.5), lwd=.25, col=k, type="l")
+					   lines(ellipse::ellipse(x=env_obj$SigY[[ ss ]][,,y,k,p], centre=env_obj$MuY[[ ss ]][,y,k,p], level=env_obj$loc_pred_plot_conf), lwd=.25, col=k, type="l")
 					}
 				}		
 			}

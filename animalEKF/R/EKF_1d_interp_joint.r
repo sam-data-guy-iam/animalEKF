@@ -5,10 +5,10 @@ EKF_1d_interp_joint <- function(d,
 				time_radius=60*30, spat_radius=300, min_num_neibs=10, interact=TRUE,
 				interact_pars=list(mu0=0, precision0=2, known_precision=2), neff_sample=1,  
 				time_dep_trans=FALSE, time_dep_trans_init=dirichlet_init, smoothing=FALSE, fix_smoothed_behaviors=TRUE, 
-				smooth_parameters=TRUE, reg_dt=150, max_int_wo_obs=NULL, resamp_full_hist=TRUE, 
+				smooth_parameters=TRUE, reg_dt=120, max_int_wo_obs=NULL, resamp_full_hist=TRUE, 
 				compare_with_known=FALSE, known_trans_prob=NULL, known_foraging_prob=NULL, known_regular_step_ds=NULL,
 				update_eachstep=FALSE, update_params_for_obs_only=FALSE,
-				output_plot=TRUE, output_dir=getwd()) {
+				output_plot=TRUE, loc_pred_plot_conf=0.5, output_dir=getwd(), pdf_prefix="EKF_1D") {
 
 
 	par(mfrow=c(2,2))		
@@ -72,7 +72,7 @@ EKF_1d_interp_joint <- function(d,
 		ids <- ids[ !is.na(ids) ]
 
 		
-		myenv$ynext <- myenv$d[ ids, c("X","date_as_sec","t_intervals","state.guess2","shark_obs_index"), drop=FALSE]
+		myenv$ynext <- myenv$d[ ids, , drop=FALSE]
 			
 		rownames(myenv$ynext) <- myenv$tags[ ids ]
 			
@@ -87,7 +87,7 @@ EKF_1d_interp_joint <- function(d,
 				myenv$ynext <- myenv$ynext[ order(rownames(myenv$ynext), myenv$ynext[,"date_as_sec",drop=FALSE]), ,drop=FALSE]
 				yobs <- nrow(myenv$ynext)
 				print("observations in interval")
-				print(myenv$ynext)
+				print(myenv$ynext[,c("X","velocity","date_as_sec","t_intervals","state.guess2","shark_obs_index"), drop=FALSE])
 			}
 		}
 		
@@ -110,11 +110,12 @@ EKF_1d_interp_joint <- function(d,
 		#if there is a shark with actual observations, we have to simulate and resample based on that.
 		
 		print(paste("Regular step", myenv$i))
-		if (length(myenv$sharks_first_obs)) { print(paste("sharks first observed:",paste(myenv$sharks_first_obs, collapse=" "))) }
-		if (length(myenv$sharks_to_sim)) { print(paste("sharks to be simulated:", paste(myenv$sharks_to_sim, collapse=" "))) }
-		if (length(myenv$sharks_with_obs)) { print(paste("sharks with obs:",paste(myenv$sharks_with_obs, collapse=" "))) }
-		#print(first_intervals)
-		#print(shark_intervals)
+		
+		if (myenv$nsharks > 1) {
+			if (length(myenv$sharks_first_obs)) { print(paste("sharks first observed:",paste(myenv$sharks_first_obs, collapse=" "))) }
+			if (length(myenv$sharks_to_sim)) { print(paste("sharks to be simulated:", paste(myenv$sharks_to_sim, collapse=" "))) }
+			if (length(myenv$sharks_with_obs)) { print(paste("sharks with obs:",paste(myenv$sharks_with_obs, collapse=" "))) }
+		}
 
 		
 		if (length(myenv$sharks_first_obs)) {
@@ -133,7 +134,7 @@ EKF_1d_interp_joint <- function(d,
 
 					
 					z <- myenv$lambda_matrix[,myenv$i,s] 
-					newV <- myenv$Xpart_history[myenv$i,"logv",,s] 
+					newV <- myenv$Xpart_history[myenv$i,"velocity",,s] 
 					
 					#index matrix for accessing terms and updating
 					access_mu <- access_V <- cbind(myenv$state_names[z], "mu", myenv$pnames, s)
@@ -309,14 +310,14 @@ EKF_1d_interp_joint <- function(d,
 			calculate_resampling_indices_EKF_1d_interp_joint(env_obj=myenv)
 			
 			if (length(myenv$sharks_to_resample) > 0) {
-				print(paste("Unique indices selected:", paste(myenv$resample_history[myenv$i, myenv$sharks_with_obs] * myenv$npart, collapse=" ")))
-							
-				print("sharks to resample:")
-				print(myenv$sharks_to_resample)		
-				#reindex sufficient statistics
-				print(paste("Unique indices selected:", paste(myenv$resample_history[myenv$i, myenv$sharks_with_obs] * myenv$npart, collapse=" ")))
-
+				print(paste("Unique resampling indices selected:", paste(myenv$resample_history[myenv$i, myenv$sharks_with_obs] * myenv$npart, collapse=" ")))
 				
+				if (myenv$nsharks > 1) {
+		
+					print("sharks to resample:")
+					print(myenv$sharks_to_resample)	
+				}			
+								
 				reindex_arrays_after_resampling_EKF_1d_interp_joint(env_obj=myenv)
 				
 				myenv$before_samp <- FALSE
@@ -421,11 +422,11 @@ EKF_1d_interp_joint <- function(d,
 					
 					znew <- myenv$Xpart_history[myenv$i + 1,"lambda",p,s]
 					sigma_draw <- MCMCpack::rinvgamma(n=1, myenv$sigma_pars[p,2*znew-1,s], myenv$sigma_pars[p,2*znew,s])
-					myenv$logv_angle_mu_draw[p,"logv",znew, s] <- mvtnorm::rmvnorm(n=1, mean=myenv$mu[znew, "mu", p, s], sigma=as.matrix(sigma_draw * myenv$mu[znew, "V", p, s]))
-					myenv$mk_prev[,znew,p,s] <- myenv$f(mk=myenv$mk_actual[,p,s], new_logv=rnorm(n=1, mean=myenv$logv_angle_mu_draw[p,"logv",znew, s], sd=sqrt(sigma_draw)), dtprev=myenv$reg_dt)
+					myenv$logv_angle_mu_draw[p,"velocity",znew, s] <- mvtnorm::rmvnorm(n=1, mean=myenv$mu[znew, "mu", p, s], sigma=as.matrix(sigma_draw * myenv$mu[znew, "V", p, s]))
+					myenv$mk_prev[,znew,p,s] <- myenv$f(mk=myenv$mk_actual[,p,s], new_logv=rnorm(n=1, mean=myenv$logv_angle_mu_draw[p,"velocity",znew, s], sd=sqrt(sigma_draw)), dtprev=myenv$reg_dt)
 					Fx_tmp <- myenv$Fx(mk=myenv$mk_actual[,p,s], dtprev=myenv$reg_dt)
 					myenv$Pk_prev[,,znew,p,s] <- as.matrix(Matrix::nearPD(Fx_tmp %*% myenv$Pk_actual[,,p,s] %*% t(Fx_tmp) + myenv$Qt[,,znew,p,s], ensureSymmetry=TRUE)$mat) #R_{t+1}
-					myenv$Xpart_history[myenv$i + 1,c("X","logv"),p,s] <- mvtnorm::rmvnorm(n=1, mean=myenv$mk_prev[,znew,p,s], sigma=myenv$Pk_prev[,,znew,p,s])
+					myenv$Xpart_history[myenv$i + 1,c("X","velocity"),p,s] <- mvtnorm::rmvnorm(n=1, mean=myenv$mk_prev[,znew,p,s], sigma=myenv$Pk_prev[,,znew,p,s])
 				}
 			
 			myenv$lambda_matrix[,myenv$i + 1,s] <- myenv$Xpart_history[myenv$i + 1, "lambda",,s]
@@ -531,7 +532,8 @@ EKF_1d_interp_joint <- function(d,
 					   "mk", "Pk", "output_dir", "shark_symbols", "tau_vals", "mu0_pars", "sharks_first_obs", "param_sampling_weights",
 					   "sharks_to_resample", "mu0_range", "before_samp", "part_with_neibs", "output_plot", "maxStep", "fix_smoothed_behaviors",
 					   "MuY", "SigY", "Particle_errvar0", "pred_xt_loc", "dirichlet_init", "nregions", "reg_dt", "Particle_err_df", "Particle_errvar",
-					   "XY_errvar_draw", "step_skipped", "smooth_parameters", "logv_angle_mu_draw", "SSquare_particle", "num_neibs", "Particle_errvar_smoothed")
+					   "XY_errvar_draw", "step_skipped", "smooth_parameters", "SSquare_particle", "num_neibs", "Particle_errvar_smoothed",
+					   "mk_actual_history")
 	
 	
 	unneeded_vars <- unique(unneeded_vars)

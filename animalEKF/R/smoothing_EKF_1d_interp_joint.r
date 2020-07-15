@@ -8,7 +8,7 @@ smoothing_EKF_1d_interp_joint <- function(env_obj){
 	
 	env_obj$smooth_iter <- env_obj$npart
 	
-	env_obj$mk_prev_smoothed <- env_obj$mk_curr_smoothed  <- array(NA, dim=c(2, n_ind, env_obj$npart, env_obj$nsharks), dimnames=list(c("X","logv"), 1:n_ind, env_obj$pnames, env_obj$shark_names))
+	env_obj$mk_prev_smoothed <- env_obj$mk_curr_smoothed  <- array(NA, dim=c(2, n_ind, env_obj$npart, env_obj$nsharks), dimnames=list(c("X","velocity"), 1:n_ind, env_obj$pnames, env_obj$shark_names))
 	env_obj$Pk_prev_smoothed <- env_obj$Pk_curr_smoothed <- env_obj$Pk_prev #array(NA, dim=c(2,2, npart, nsharks), dimnames=list(c("X","logv"), c("X","logv"), pnames, shark_names))
 	
 	if (env_obj$interact) { 
@@ -48,7 +48,7 @@ smoothing_EKF_1d_interp_joint <- function(env_obj){
 	
 	#store the states
 	env_obj$Xpart_history_smoothed <- array(NA, dim=c(env_obj$N, 3, env_obj$smooth_iter, env_obj$nsharks), 
-											dimnames=list(env_obj$Nnames, c("X","logv","lambda"), 1:env_obj$smooth_iter, env_obj$shark_names))
+											dimnames=list(env_obj$Nnames, c("X","velocity","lambda"), 1:env_obj$smooth_iter, env_obj$shark_names))
 	
 	#can't use first step because need to condition on previous bearing each time
 	smooth_steps <- env_obj$shark_valid_steps
@@ -84,7 +84,7 @@ smoothing_EKF_1d_interp_joint <- function(env_obj){
 					indices[s,] <- sample.int(n=env_obj$smooth_iter, replace=TRUE, size=env_obj$smooth_iter)
 				}
 				
-				env_obj$Xpart_history_smoothed[ i + 1,c("X","logv","lambda") ,, s] <- env_obj$Xpart_history[ i + 1,c("X","logv","lambda") ,indices[s, ], s]  
+				env_obj$Xpart_history_smoothed[ i + 1,c("X","velocity","lambda") ,, s] <- env_obj$Xpart_history[ i + 1,c("X","velocity","lambda") ,indices[s, ], s]  
 				
 			}
 			
@@ -122,11 +122,11 @@ smoothing_EKF_1d_interp_joint <- function(env_obj){
 
 			for (k in 1:env_obj$nstates) {		
 				
-				env_obj$Qt["logv","logv",k,,s] <- MCMCpack::rinvgamma(n=env_obj$npart, env_obj$sigma_pars_smoothed[,2*k-1,s], env_obj$sigma_pars_smoothed[,2*k,s])
+				env_obj$Qt["velocity","velocity",k,,s] <- MCMCpack::rinvgamma(n=env_obj$npart, env_obj$sigma_pars_smoothed[,2*k-1,s], env_obj$sigma_pars_smoothed[,2*k,s])
 				
 				for (p in 1:env_obj$npart) {
 				
-					env_obj$logv_angle_mu_draw[k,p] <- mvtnorm::rmvnorm(n=1, mean=env_obj$mu_smoothed[k, "mu", p, s], sigma=as.matrix(env_obj$Qt[2, 2,k,p,s] * env_obj$mu_smoothed[k, "V", p, s]))
+					env_obj$logv_angle_mu_draw[k,p] <- keep_finite(mvtnorm::rmvnorm(n=1, mean=env_obj$mu_smoothed[k, "mu", p, s], sigma=as.matrix(env_obj$Qt[2, 2,k,p,s] * env_obj$mu_smoothed[k, "V", p, s])))
 				}
 
 				
@@ -144,6 +144,8 @@ smoothing_EKF_1d_interp_joint <- function(env_obj){
 				env_obj$mk_prev_smoothed["X",,p,s] <- env_obj$Xpart_history[ i,"X",p,s]
 			
 			}
+			
+			env_obj$Qt["X","X",,,s] <- keep_finite(env_obj$Qt["X","X",,,s])
 			
 			#if interact, need to calculate neighbors for each s_ind, given previous states
 			if (env_obj$interact) {
@@ -180,26 +182,26 @@ smoothing_EKF_1d_interp_joint <- function(env_obj){
 							
 			if (env_obj$fix_smoothed_behaviors) {
 			
-				env_obj$mk_prev_smoothed["logv",,,s] <- env_obj$logv_angle_mu_draw[ cbind(z_prev, 1:env_obj$npart) ]
+				env_obj$mk_prev_smoothed["velocity",,,s] <- env_obj$logv_angle_mu_draw[ cbind(z_prev, 1:env_obj$npart) ]
 								
 				
 				for (p in 1:env_obj$npart) {	
 					
-					Fx_tmp <- env_obj$Fx(mk=env_obj$mk_prev_smoothed[,1,p,s], dtprev=env_obj$reg_dt)	
+					Fx_tmp <- keep_finite(env_obj$Fx(mk=env_obj$mk_prev_smoothed[,1,p,s], dtprev=env_obj$reg_dt))	
 					
-					env_obj$Pk_curr_smoothed[,,1,p,s] <- as.matrix(Matrix::nearPD(Fx_tmp %*% env_obj$Pk_prev[,,z_prev[ p ],p,s] %*% t(Fx_tmp) + env_obj$Qt[,,z_prev[ p ],p,s], ensureSymmetry=TRUE)$mat) #R_{t+1}
-					env_obj$mk_curr_smoothed["X",1,p,s] <- env_obj$h(mk=env_obj$mk_prev_smoothed[,1,p,s], dtprev=env_obj$reg_dt)				
+					env_obj$Pk_curr_smoothed[,,1,p,s] <- keep_finite(as.matrix(Matrix::nearPD(keep_finite(keep_finite(keep_finite(Fx_tmp %*% env_obj$Pk_prev[,,z_prev[ p ],p,s]) %*% t(Fx_tmp)) + env_obj$Qt[,,z_prev[ p ],p,s]), ensureSymmetry=TRUE)$mat)) #R_{t+1}
+					env_obj$mk_curr_smoothed["X",1,p,s] <- keep_finite(env_obj$h(mk=env_obj$mk_prev_smoothed[,1,p,s], dtprev=env_obj$reg_dt))				
 				}
 
 				for (s_ind in 1:env_obj$smooth_iter) {
 				
 					#replace each value of "logv" for all particles with the historical value to evaluate density
 					
-					env_obj$mk_curr_smoothed["logv",1,,s] <- env_obj$Xpart_history_smoothed[i+1,"logv",s_ind,s]
+					env_obj$mk_curr_smoothed["velocity",1,,s] <- env_obj$Xpart_history_smoothed[i+1,"velocity",s_ind,s]
 					
 					for (p in 1:env_obj$npart) {
 					
-						densities_smoothed[ p, 1, s] <- mvtnorm::dmvnorm(x=env_obj$Xpart_history_smoothed[i + 1,c("X","logv"), s_ind, s], mean=env_obj$mk_curr_smoothed[,1,p,s], sigma=env_obj$Pk_curr_smoothed[,,1,p,s])
+						densities_smoothed[ p, 1, s] <- keep_finite(mvtnorm::dmvnorm(x=env_obj$Xpart_history_smoothed[i + 1,c("X","velocity"), s_ind, s], mean=env_obj$mk_curr_smoothed[,1,p,s], sigma=env_obj$Pk_curr_smoothed[,,1,p,s]))
 						
 					}
 					
@@ -246,9 +248,9 @@ smoothing_EKF_1d_interp_joint <- function(env_obj){
 											
 								env_obj$interact_intensity_draw_smoothed[part_with_neibs[,s], k] <- rlnorm(n=num_part_with_neibs, meanlog=env_obj$interact_mu_draw_smoothed[ part_with_neibs[,s] ,k] * neib_fracs_smoothed[ part_with_neibs[,s],k], sdlog=env_obj$interact_pars$known_sd[k])
 							}
-						
+							env_obj$interact_intensity_draw_smoothed[part_with_neibs[,s],] <- keep_finite(env_obj$interact_intensity_draw_smoothed[part_with_neibs[,s],])
 							#multiply by interaction draw, but condition on the behavior that ocurred before
-							densities_smoothed[,,s] <- densities_smoothed[,,s] * env_obj$interact_intensity_draw_smoothed[,,s][ cbind(1:env_obj$npart, z_prev) ]
+							densities_smoothed[,,s] <- keep_finite(densities_smoothed[,,s] * keep_finite(env_obj$interact_intensity_draw_smoothed[ cbind(1:env_obj$npart, z_prev) ]))
 							
 						}
 												
@@ -267,7 +269,7 @@ smoothing_EKF_1d_interp_joint <- function(env_obj){
 					
 				
 				}
-				env_obj$Xpart_history_smoothed[ i, ,, s] <- env_obj$Xpart_history[ i, c("X","logv","lambda"), indices[s,], s]
+				env_obj$Xpart_history_smoothed[ i, ,, s] <- env_obj$Xpart_history[ i, c("X","velocity","lambda"), indices[s,], s]
 
 
 				
@@ -275,23 +277,23 @@ smoothing_EKF_1d_interp_joint <- function(env_obj){
 			else {
 							
 			
-				env_obj$mk_prev_smoothed["logv",,,s] <- env_obj$logv_angle_mu_draw
+				env_obj$mk_prev_smoothed["velocity",,,s] <- env_obj$logv_angle_mu_draw
 				
 				
 					
 				for (p in 1:env_obj$npart) {
 					for (k in 1:env_obj$nstates) {
 						
-						Fx_tmp <- env_obj$Fx(mk=env_obj$mk_prev_smoothed[,k,p,s], dtprev=env_obj$reg_dt)
-						env_obj$Pk_curr_smoothed[,,k, p,s] <- as.matrix(Matrix::nearPD(Fx_tmp %*% env_obj$Pk_prev[,,k,p,s] %*% t(Fx_tmp) + env_obj$Qt[,,k,p,s], ensureSymmetry=TRUE)$mat) #R_{t+1}
+						Fx_tmp <- keep_finite(env_obj$Fx(mk=env_obj$mk_prev_smoothed[,k,p,s], dtprev=env_obj$reg_dt))
+						env_obj$Pk_curr_smoothed[,,k, p,s] <- keep_finite(as.matrix(Matrix::nearPD(keep_finite(keep_finite(keep_finite(Fx_tmp %*% env_obj$Pk_prev[,,k,p,s]) %*% t(Fx_tmp)) + env_obj$Qt[,,k,p,s]), ensureSymmetry=TRUE)$mat)) #R_{t+1}
 								#Pk_curr_smoothed[1:2,1:2,k, p,s] <- as.matrix(Matrix::nearPD(Hx_tmp%*%Pk_prev_smoothed[,,k,p,s]%*%t(Hx_tmp) + Qt[1:2,1:2,k,p,s], ensureSymmetry=TRUE)$mat) #R_{t+1}
 								
-						env_obj$mk_curr_smoothed["X",k ,p,s] <- env_obj$h(mk=env_obj$mk_prev_smoothed[,k,p,s], dtprev=env_obj$reg_dt)
+						env_obj$mk_curr_smoothed["X",k ,p,s] <- keep_finite(env_obj$h(mk=env_obj$mk_prev_smoothed[,k,p,s], dtprev=env_obj$reg_dt))
 					}
 				}
 			
 				for (s_ind in 1:env_obj$smooth_iter) {
-					env_obj$mk_curr_smoothed["logv",,,s] <- env_obj$Xpart_history_smoothed[i + 1,"logv",s_ind,s]
+					env_obj$mk_curr_smoothed["velocity",,,s] <- env_obj$Xpart_history_smoothed[i + 1,"velocity",s_ind,s]
 					
 					
 											
@@ -300,12 +302,12 @@ smoothing_EKF_1d_interp_joint <- function(env_obj){
 					for (p in 1:env_obj$npart) {
 						for (k in 1:env_obj$nstates) {
 					
-							densities_smoothed[ p, k, s] <- mvtnorm::dmvnorm(x=env_obj$Xpart_history_smoothed[i + 1,c("X","logv"), s_ind, s], mean=env_obj$mk_curr_smoothed[,k,p,s], sigma=env_obj$Pk_curr_smoothed[,,k,p,s])
+							densities_smoothed[ p, k, s] <- mvtnorm::dmvnorm(x=env_obj$Xpart_history_smoothed[i + 1,c("X","velocity"), s_ind, s], mean=env_obj$mk_curr_smoothed[,k,p,s], sigma=env_obj$Pk_curr_smoothed[,,k,p,s])
 						}
 					}
 					
 					
-					densities_smoothed[,,s] <- densities_smoothed[,,s] * transition_draws
+					densities_smoothed[,,s] <- keep_finite(densities_smoothed[,,s]) * transition_draws
 					
 					swts <- rowSums(densities_smoothed[,,s])
 					
@@ -322,7 +324,7 @@ smoothing_EKF_1d_interp_joint <- function(env_obj){
 				}
 				
 				#now use overall weights to select other variables
-				env_obj$Xpart_history_smoothed[ i,c("X","logv") ,, s] <- env_obj$Xpart_history[ i, c("X","logv"), indices[s,], s]
+				env_obj$Xpart_history_smoothed[ i,c("X","velocity") ,, s] <- env_obj$Xpart_history[ i, c("X","velocity"), indices[s,], s]
 
 			}
 
@@ -342,7 +344,7 @@ smoothing_EKF_1d_interp_joint <- function(env_obj){
 				
 				
 			if (! ((i - 1) %in% smooth_steps[[ s ]])) { 
-				env_obj$Xpart_history_smoothed[ i - 1, c("X","lambda","logv"),, s] <- env_obj$Xpart_history[ i-1,c("X","lambda","logv") ,indices[s,], s]  
+				env_obj$Xpart_history_smoothed[ i - 1, c("X","lambda","velocity"),, s] <- env_obj$Xpart_history[ i-1,c("X","lambda","velocity") ,indices[s,], s]  
 					
 			}	
 		
@@ -358,7 +360,7 @@ smoothing_EKF_1d_interp_joint <- function(env_obj){
 		steps <- which(! is.na(env_obj$Xpart_history_smoothed[,"X",1,s]))
 		steps <- steps[ (steps+1) %in% steps]
 		dist_x <- abs(env_obj$Xpart_history_smoothed[steps+1,"X",,s] - env_obj$Xpart_history_smoothed[steps,"X",,s])
-		env_obj$Xpart_history_smoothed[steps, "logv",,s ] <- dist_x/env_obj$reg_dt
+		env_obj$Xpart_history_smoothed[steps, "velocity",,s ] <- dist_x/env_obj$reg_dt
 		
 		
 	}

@@ -10,7 +10,7 @@ sharks_to_sim_update_EKF_interp_joint <- function(env_obj) {
 		tis <- env_obj$Xpart_history[env_obj$i-1 , "time_in_state",, s]
 		
 			
-		newV <- env_obj$Xpart_history[env_obj$i, c("logv","turn_rad"),,s]
+		newV <- env_obj$Xpart_history[env_obj$i, c("log_speed","turn_rad"),,s]
 		
 		access_mu_alpha <- access_mu_beta <- cbind(env_obj$state_names[z], "alpha", "mu", env_obj$pnames, s) 
 		access_mu_beta[,2] <- "beta"
@@ -31,14 +31,14 @@ sharks_to_sim_update_EKF_interp_joint <- function(env_obj) {
 		env_obj$mu[access_V_beta] <-  1/(1 + 1/Vb0)
 			
 		#mu update	
-		env_obj$mu[access_mu_alpha] <- ((1/Va0)*mua0 + newV["logv",]*1) * env_obj$mu[access_V_alpha]
+		env_obj$mu[access_mu_alpha] <- ((1/Va0)*mua0 + newV["log_speed",]*1) * env_obj$mu[access_V_alpha]
 				
 			
 		theta_vals <- sapply(newV[ "turn_rad", ], function(ff) ff + env_obj$wn_seq) #matrix with npart columns
-		beta_weights <- sapply(1:env_obj$npart, function(pp) dnorm(x=theta_vals[,pp], mean=env_obj$logv_angle_mu_draw[pp,"turn",z[ pp ],s], sd=sqrt(env_obj$tau_draw[pp,z[ pp ],s])))
+		beta_weights <- sapply(1:env_obj$npart, function(pp) keep_finite(dnorm(x=theta_vals[,pp], mean=env_obj$logv_angle_mu_draw[pp,"turn",z[ pp ],s], sd=sqrt(env_obj$tau_draw[pp,z[ pp ],s]))))
 		beta_weights <- apply(beta_weights, 2, function(pp) pp/sum(pp))
-		wtd_x <- colSums(theta_vals * beta_weights) 
-		wtd_x2 <- colSums((theta_vals^2) * beta_weights) 
+		wtd_x <- colSums(keep_finite(theta_vals * beta_weights)) 
+		wtd_x2 <- colSums(keep_finite(keep_finite(theta_vals^2) * beta_weights)) 
 			
 		
 		env_obj$mu[access_mu_beta] <- normalize_angle(((1/Vb0)*mub0 + wtd_x*1) * env_obj$mu[access_V_beta])
@@ -48,7 +48,7 @@ sharks_to_sim_update_EKF_interp_joint <- function(env_obj) {
 		#wtd_mu is just wtd_x just not squared, since just one number
 		access_igamma <- cbind(1:env_obj$npart, 2*z)
 		env_obj$tau_pars[,,s][ access_igamma ]  <- env_obj$tau_pars[,,s][ access_igamma ] + 0.5*((mub0^2)/Vb0 + wtd_x2 - (env_obj$mu[access_mu_beta]^2)/env_obj$mu[access_V_beta])
-		env_obj$sigma_pars[,,s][ access_igamma ]  <- env_obj$sigma_pars[,,s][ access_igamma ] + 0.5*((mua0^2)/Va0 + newV["logv",]^2 - (env_obj$mu[access_mu_alpha]^2)/env_obj$mu[access_V_alpha])
+		env_obj$sigma_pars[,,s][ access_igamma ]  <- env_obj$sigma_pars[,,s][ access_igamma ] + 0.5*((mua0^2)/Va0 + newV["log_speed",]^2 - (env_obj$mu[access_mu_alpha]^2)/env_obj$mu[access_V_alpha])
 			
 		#matrix of 1s and 0s for how many of which state was observed
 		access_igamma2 <- cbind(1:env_obj$npart, 2*z - 1)
@@ -70,16 +70,14 @@ sharks_to_sim_update_EKF_interp_joint <- function(env_obj) {
 		for (p in 1:env_obj$npart) {
 			
 			
-			err_tmp <- t(env_obj$mk_prev[c("X","Y"),z[ p ],p,s]) - env_obj$Xpart_history[env_obj$i,c("X","Y"),p,s]
-
-			#rint(err_tmp)
-			#print(t(err_tmp)%*%err_tmp)
+			#err_tmp <- keep_finite(t(env_obj$mk_prev[c("X","Y"),z[ p ],p,s]) - env_obj$Xpart_history[env_obj$i,c("X","Y"),p,s])
+			err_tmp <- keep_finite(t(env_obj$mk_actual_history[env_obj$i, c("X","Y"),p,s]) - env_obj$Xpart_history[env_obj$i,c("X","Y"),p,s])
 			
 			#does not depend on the state
-			env_obj$SSquare_particle[,,p,s] <- env_obj$SSquare_particle[,,p,s] + t(err_tmp)%*%err_tmp
+			env_obj$SSquare_particle[,,p,s] <- keep_finite(env_obj$SSquare_particle[,,p,s] + keep_finite(t(err_tmp)%*%err_tmp))
 			
 			
-			env_obj$Particle_errvar[[ s ]][[ p ]]$sig <- as.matrix(Matrix::nearPD(env_obj$Particle_errvar0 + env_obj$SSquare_particle[,,p,s], ensureSymmetry=TRUE)$mat)
+			env_obj$Particle_errvar[[ s ]][[ p ]]$sig <- keep_finite(as.matrix(Matrix::nearPD(keep_finite(env_obj$Particle_errvar0 + env_obj$SSquare_particle[,,p,s]), ensureSymmetry=TRUE)$mat))
 			env_obj$Particle_errvar[[ s ]][[ p ]]$dof <- env_obj$Particle_errvar[[ s ]][[ p ]]$dof + 1 
 			
 			if (env_obj$nstates > 1) {

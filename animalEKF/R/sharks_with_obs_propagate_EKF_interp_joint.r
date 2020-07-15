@@ -1,7 +1,7 @@
 sharks_with_obs_propagate_EKF_interp_joint <- function(env_obj) {
 
 	env_obj$Pk[,,,,env_obj$sharks_with_obs] <- 0
-	env_obj$mk[,,,env_obj$sharks_with_obs] <-0 				
+	env_obj$mk[,,,env_obj$sharks_with_obs] <- 0 				
 	
 	for (s in env_obj$sharks_with_obs) {
 		
@@ -28,53 +28,60 @@ sharks_with_obs_propagate_EKF_interp_joint <- function(env_obj) {
 				if (y==1) {  mk_tmp <- env_obj$mk_prev[,z,p,s] }		 
 				else { 	mk_tmp <- c(env_obj$MuY[[ s ]][,y-1,z,p], env_obj$mk_prev[3:4,z,p,s]) }	
 				
-				Hx_tmp <- env_obj$Hx(mk=mk_tmp, dtprev=j_tmp[ y ] * env_obj$reg_dt)	
-				
-				env_obj$Kgain[[ s ]][,,y,z,p] <-  (env_obj$Pk_prev[,,z,p,s] %*% t(Hx_tmp)) %*% MASS::ginv(env_obj$SigY[[ s ]][,,y,z,p])
+				Hx_tmp <- keep_finite(env_obj$Hx(mk=mk_tmp, dtprev=j_tmp[ y ] * env_obj$reg_dt))	
+
+				env_obj$Kgain[[ s ]][,,y,z,p] <- keep_finite(keep_finite(env_obj$Pk_prev[,,z,p,s] %*% t(Hx_tmp)) %*% keep_finite(MASS::ginv(env_obj$SigY[[ s ]][,,y,z,p])))
 				
 				
 				#env_obj$Pk[,,z,p,s] <- as.matrix(Matrix::nearPD(env_obj$Pk[,,z,p,s] + env_obj$Pk_prev_interp[[ s ]][,,y,z,p] - Kgain[[ s ]][,,y,z,p]%*%env_obj$SigY[[ s ]][,,y,z,p]%*%t(Kgain[[ s ]][,,y,z,p]), ensureSymmetry=TRUE)$mat)
 				#sequentially add to env_obj$Pk variance
-				env_obj$Pk[,,z,p,s] <- as.matrix(Matrix::nearPD(env_obj$Pk[,,z,p,s] + env_obj$Pk_prev[,,z,p,s] - env_obj$Kgain[[ s ]][,,y,z,p] %*% env_obj$SigY[[ s ]][,,y,z,p] %*% t(env_obj$Kgain[[ s ]][,,y,z,p]), ensureSymmetry=TRUE)$mat)	
-					
+				env_obj$Pk[,,z,p,s] <- as.matrix(keep_finite(env_obj$Pk[,,z,p,s] - keep_finite(keep_finite(env_obj$Kgain[[ s ]][,,y,z,p] %*% env_obj$SigY[[ s ]][,,y,z,p]) %*% t(env_obj$Kgain[[ s ]][,,y,z,p]))))	
 				#env_obj$mk[,z,p,s] <- env_obj$mk[,z,p,s] + (Kgain[[ s ]][,,y,z,p]%*%t(ynext[ which(rownames(ynext)==s)[ y ],c("X","Y"), drop=FALSE] - h(mk=env_obj$mk_prev[,z,p,s], dtprev=env_obj$j_list[[ s ]][[ env_obj$i ]][ y ]*env_obj$reg_dt)))
-				env_obj$mk[,z,p,s] <- env_obj$mk[,z,p,s] + (env_obj$Kgain[[ s ]][,,y,z,p] %*% t(env_obj$ynext[ which(rownames(env_obj$ynext)==s)[ y ], c("X","Y"), drop=FALSE] - env_obj$h(mk=mk_tmp, dtprev=j_tmp[ y ] * env_obj$reg_dt)))
+				env_obj$mk[,z,p,s] <- keep_finite(env_obj$mk[,z,p,s] + keep_finite(env_obj$Kgain[[ s ]][,,y,z,p] %*% keep_finite(t(env_obj$ynext[ which(rownames(env_obj$ynext)==s)[ y ], c("X","Y"), drop=FALSE] - env_obj$h(mk=mk_tmp, dtprev=j_tmp[ y ] * env_obj$reg_dt)))))
 			
-				env_obj$mk[4,z,p,s] <- normalize_angle( env_obj$mk[4,z,p,s])
+				env_obj$mk[4,z,p,s] <- normalize_angle(env_obj$mk[4,z,p,s])
 				
 			}
 			
-			#print("mk increase")
-			#zprint(env_obj$mk[,z,p,s])
 			
-			env_obj$Pk[,,z,p,s] <- as.matrix(Matrix::nearPD(env_obj$Pk[,,z,p,s], ensureSymmetry=TRUE)$mat)	
+			
+			env_obj$Pk[,,z,p,s] <- keep_finite(as.matrix(Matrix::nearPD(keep_finite(env_obj$Pk[,,z,p,s] + env_obj$Pk_prev[,,z,p,s]), ensureSymmetry=TRUE)$mat))	
 			
 			#do this because have to add env_obj$mk_prev at the end because loop over yobs
 			#mk is the cumulative  sum of Kalman gains
 		
 			
-			env_obj$mk[,z,p,s] <- env_obj$mk_prev[,z,p,s] + env_obj$mk[,z,p,s]
+			env_obj$mk[,z,p,s] <- keep_finite(env_obj$mk_prev[,z,p,s] + env_obj$mk[,z,p,s])
 			env_obj$mk[4,z,p,s] <- normalize_angle(env_obj$mk[4,z,p,s])
 			
 			#finish updating the sufficient statistics		
 			env_obj$Pk_actual[,, p,s] <- env_obj$Pk[,,z, p,s]
 			env_obj$mk_actual[,p,s] <- env_obj$mk[,z,p,s]
-		
 
+						
 			if (env_obj$truncate_to_map) {   
 				
-				tmp <- reject_sampling(mu=env_obj$mk_actual[,p,s], cmat=env_obj$Pk_actual[,,p,s], prev_val=env_obj$Xpart_history[env_obj$i-1, c("X","Y","logv","bearing_rad"),p,s], obj=env_obj)
+				tmp <- reject_sampling(mu=env_obj$mk_actual[,p,s], cmat=env_obj$Pk_actual[,,p,s], prev_val=env_obj$Xpart_history[env_obj$i-1, c("X","Y","log_speed","bearing_rad"),p,s], obj=env_obj)
 			
-				env_obj$Xpart_history[env_obj$i, c("X","Y","logv","bearing_rad"),p,s] <- tmp$val
+				env_obj$Xpart_history[env_obj$i, c("X","Y","log_speed","bearing_rad"),p,s] <- keep_finite(tmp$val)
 				env_obj$num_reject[ p ] <- tmp$iter
 			}
 			else {   
 				#Xpart[p,,1,"next_t",s]  <- mvtnorm::rmvnorm(n=1, mean=env_obj$mk_actual[,p,s], sigma=env_obj$Pk_actual[,,p,s])  
-				env_obj$Xpart_history[env_obj$i, c("X","Y","logv","bearing_rad"),p,s]  <- mvtnorm::rmvnorm(n=1, mean=env_obj$mk_actual[,p,s], sigma=env_obj$Pk_actual[,,p,s])  
+				env_obj$Xpart_history[env_obj$i, c("X","Y","log_speed","bearing_rad"),p,s]  <- keep_finite(mvtnorm::rmvnorm(n=1, mean=env_obj$mk_actual[,p,s], sigma=env_obj$Pk_actual[,,p,s]))  
 				#Xpart_history[ env_obj$i,c("X","Y","logv","bearing_rad"),p,s]  <- mvtnorm::rmvnorm(n=1, mean=h(mk=Xpart_history[i-1,c("X","Y","logv","bearing_rad"),p,s], dtprev=env_obj$reg_dt), sigma=Qt[,,z,p,s])  
 			}
 
 		}
+		
+		# store history
+		env_obj$mk_actual_history[env_obj$i,,,s] <- env_obj$mk_actual[,,s]
+
+		
+		
+		# restrict logvelocity to range so variance doesn't blow up
+		env_obj$Xpart_history[env_obj$i, "log_speed",, env_obj$s] <- pmin(pmax(env_obj$logvelocity_truncate[1], env_obj$Xpart_history[env_obj$i, "log_speed",, env_obj$s]), env_obj$logvelocity_truncate[2])
+	
 		
 		if (env_obj$truncate_to_map) {
 			env_obj$reject_samp_hist[env_obj$i,,s] <- c(mean(env_obj$num_reject), median(env_obj$num_reject))
@@ -88,14 +95,13 @@ sharks_with_obs_propagate_EKF_interp_joint <- function(env_obj) {
 	#recalculate turn angle at time t-1 to get to locations at time t
 	#Xpart[,"logv",1,"curr",sharks_with_obs] <- normalize_logv(Xpart[,"logv",1,"curr",sharks_with_obs])
 	
-	env_obj$Xpart_history[env_obj$i,"logv",,env_obj$sharks_with_obs] <- normalize_logv(env_obj$Xpart_history[env_obj$i,"logv",,env_obj$sharks_with_obs])
-	
+
 	#bearing is in radians
 	
 	env_obj$Xpart_history[env_obj$i,"bearing_rad",,env_obj$sharks_with_obs] <- normalize_angle(env_obj$Xpart_history[ env_obj$i,"bearing_rad",,env_obj$sharks_with_obs])
 	env_obj$Xpart_history[env_obj$i,"turn_rad",, env_obj$sharks_with_obs] <- normalize_angle(env_obj$Xpart_history[env_obj$i,"bearing_rad",,env_obj$sharks_with_obs] - env_obj$Xpart_history[env_obj$i-1,"bearing_rad",,env_obj$sharks_with_obs])
 	
-	env_obj$mk_actual[,,env_obj$sharks_with_obs] <- env_obj$Xpart_history[env_obj$i, c("X","Y","logv","bearing_rad"),, env_obj$sharks_with_obs]
+	# env_obj$mk_actual[,,env_obj$sharks_with_obs] <- env_obj$Xpart_history[env_obj$i, c("X","Y","logv","bearing_rad"),, env_obj$sharks_with_obs]
 	
 			
 	

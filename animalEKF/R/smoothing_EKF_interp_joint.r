@@ -51,8 +51,9 @@ smoothing_EKF_interp_joint <- function(env_obj) {
 
 	
 	#store the states
-	env_obj$Xpart_history_smoothed <- array(NA, dim=c(env_obj$N, 7, env_obj$smooth_iter, env_obj$nsharks), 
-											dimnames=list(env_obj$Nnames, c("X","Y","logv","bearing_rad","turn_rad","lambda","region"), 1:env_obj$smooth_iter, env_obj$shark_names))
+	var_subset <- c("X","Y","log_speed","bearing_rad","turn_rad","lambda","region", "speed")
+	env_obj$Xpart_history_smoothed <- array(NA, dim=c(env_obj$N, 8, env_obj$smooth_iter, env_obj$nsharks), 
+											dimnames=list(env_obj$Nnames, var_subset, 1:env_obj$smooth_iter, env_obj$shark_names))
 	
 	#can't use first step because need to condition on previous bearing each time
 	smooth_steps <- env_obj$shark_valid_steps
@@ -84,7 +85,7 @@ smoothing_EKF_interp_joint <- function(env_obj) {
 					indices[s,] <- sample.int(n=env_obj$smooth_iter, replace=TRUE, size=env_obj$smooth_iter)
 				}
 				
-				env_obj$Xpart_history_smoothed[ i+1, ,, s] <- env_obj$Xpart_history[ i+1,c("X","Y","logv","bearing_rad","turn_rad","lambda","region") ,indices[s,], s]  
+				env_obj$Xpart_history_smoothed[ i+1, ,, s] <- env_obj$Xpart_history[ i+1, var_subset ,indices[s,], s]  
 				
 			}
 			
@@ -107,11 +108,11 @@ smoothing_EKF_interp_joint <- function(env_obj) {
 				
 				#only use position 1	
 			
-				print(cbs0)
+				#print(cbs0)
 
 				env_obj$Qt["logv","logv",,,s][ cbind(z_prev, 1:env_obj$npart) ] <- MCMCpack::rinvgamma(n=env_obj$npart, env_obj$sigma_pars[,,s][ cbind(1:env_obj$npart, 2*z_prev-1) ], env_obj$sigma_pars[,,s][ cbind(1:env_obj$npart, 2*z_prev) ])
-				try(print(env_obj$Qt["logv","logv",,,,drop=FALSE][ cbs0 ]))
-				try(print(env_obj$Qt["logv","logv",,,s][ cbind(z_prev, 1:env_obj$npart) ]))
+				#try(print(env_obj$Qt["logv","logv",,,,drop=FALSE][ cbs0 ]))
+				#try(print(env_obj$Qt["logv","logv",,,s][ cbind(z_prev, 1:env_obj$npart) ]))
 				env_obj$Qt["bearing_rad","bearing_rad",,,s][ cbind(z_prev, 1:env_obj$npart) ] <- MCMCpack::rinvgamma(n=env_obj$npart, env_obj$tau_pars[,,s][ cbind(1:env_obj$npart, 2*z_prev-1) ], env_obj$tau_pars[,,s][ cbind(1:env_obj$npart, 2*z_prev) ])
 				
 				
@@ -153,7 +154,7 @@ smoothing_EKF_interp_joint <- function(env_obj) {
 				#Qt[1:2,1:2 ,k,p,s] <- MCMCpack::riwish(v=env_obj$XY_errvar[[ s ]][[ p ]][[ k ]]$dof, S=env_obj$XY_errvar[[ s ]][[ p ]][[ k ]]$sig)
 	
 			}
-			
+			env_obj$Qt[1:2,1:2 ,,,s] <- keep_finite(env_obj$Qt[1:2,1:2 ,,p,s])
 			
 			for (k in 1:n_ind) {
 				#set X location (and later Y and previous bearing)
@@ -210,16 +211,16 @@ smoothing_EKF_interp_joint <- function(env_obj) {
 				env_obj$mk_prev_smoothed[ cbind("bearing_rad", cbs) ]  <- normalize_angle(env_obj$mk_prev_smoothed[ cbind("bearing_rad", cbs) ] + env_obj$logv_angle_mu_draw["turn",1, ])
 				
 				for (p in 1:env_obj$npart) {
-					Fx_tmp <- env_obj$Fx(mk=env_obj$mk_prev_smoothed[, z_prev[ p ],p,s], dtprev=env_obj$reg_dt)														
+					Fx_tmp <- keep_finite(env_obj$Fx(mk=env_obj$mk_prev_smoothed[, z_prev[ p ],p,s], dtprev=env_obj$reg_dt))														
 					
-					env_obj$Pk_curr_smoothed[,,1, p,s] <- as.matrix(Matrix::nearPD(Fx_tmp %*% env_obj$Pk_prev_smoothed[,,z_prev[ p ],p,s] %*% t(Fx_tmp) + env_obj$Qt[,,z_prev[ p ],p,s], ensureSymmetry=TRUE)$mat) #R_{t+1}
+					env_obj$Pk_curr_smoothed[,,1, p,s] <- keep_finite(as.matrix(Matrix::nearPD(keep_finite(keep_finite(keep_finite(Fx_tmp %*% env_obj$Pk_prev_smoothed[,,z_prev[ p ],p,s]) %*% t(Fx_tmp)) + env_obj$Qt[,,z_prev[ p ],p,s]), ensureSymmetry=TRUE)$mat)) #R_{t+1}
 					
 					
 					#env_obj$Pk_curr_smoothed[,,1, p,s] <- as.matrix(Matrix::nearPD(Fx_tmp%*%env_obj$Pk_prev_smoothed[,,z_prev[ p ],p,s]%*%t(Fx_tmp) + Qt[,,z_prev[ p ],p,s], ensureSymmetry=TRUE)$mat) #R_{t+1}
 					
 					#do this to cut down on computation for env_obj$mk_curr_smoothed
 					#this part stays the same
-					env_obj$mk_curr_smoothed[c("X","Y"), 1,p,s] <- env_obj$h(mk=env_obj$mk_prev_smoothed[,z_prev[ p ], p,s], dtprev=env_obj$reg_dt)
+					env_obj$mk_curr_smoothed[c("X","Y"), 1,p,s] <- keep_finite(env_obj$h(mk=env_obj$mk_prev_smoothed[,z_prev[ p ], p,s], dtprev=env_obj$reg_dt))
 										
 				}
 				
@@ -227,7 +228,7 @@ smoothing_EKF_interp_joint <- function(env_obj) {
 			
 				for (s_ind in 1:env_obj$smooth_iter) {
 					#this new part will depend on the turn angle and speed that actually happened
-					env_obj$mk_curr_smoothed["logv",1,,s] <- env_obj$Xpart_history_smoothed[i+1,"logv",s_ind,s]
+					env_obj$mk_curr_smoothed["logv",1,,s] <- env_obj$Xpart_history_smoothed[i+1,"log_speed",s_ind,s]
 					env_obj$mk_curr_smoothed["bearing_rad",1,,s] <- normalize_angle(env_obj$mk_prev_smoothed[ cbind("bearing_rad", cbs) ] + env_obj$Xpart_history_smoothed[i+1,"turn_rad",s_ind,s])
 					
 					#the densities smoothed matrix gets overridden every time
@@ -240,8 +241,8 @@ smoothing_EKF_interp_joint <- function(env_obj) {
 						
 						#use wrapped normal here for the last component
 						
-						densities_smoothed[ p,,s ] <- mvtnorm::dmvnorm(x=env_obj$Xpart_history_smoothed[i+1,c("X","Y","logv"), s_ind, s], mean=env_obj$mk_curr_smoothed[1:3,1,p,s], sigma=env_obj$Pk_curr_smoothed[1:3,1:3,1,p,s])
-						densities_smoothed[ p,,s ] <- densities_smoothed[ p,,s ] * dwrpnorm_tmp(x=env_obj$Xpart_history_smoothed[i+1,"bearing_rad", s_ind, s], mean=env_obj$mk_curr_smoothed["bearing_rad",1,p,s], sd=sqrt(env_obj$Pk_curr_smoothed[4,4,1,p,s]))
+						densities_smoothed[ p,,s ] <- keep_finite(mvtnorm::dmvnorm(x=env_obj$Xpart_history_smoothed[i+1,c("X","Y","log_speed"), s_ind, s], mean=env_obj$mk_curr_smoothed[1:3,1,p,s], sigma=env_obj$Pk_curr_smoothed[1:3,1:3,1,p,s]))
+						densities_smoothed[ p,,s ] <- keep_finite(densities_smoothed[ p,,s ] * keep_finite(dwrpnorm_tmp(x=env_obj$Xpart_history_smoothed[i+1,"bearing_rad", s_ind, s], mean=env_obj$mk_curr_smoothed["bearing_rad",1,p,s], sd=sqrt(env_obj$Pk_curr_smoothed[4,4,1,p,s]))))
 					}
 				
 					if (env_obj$nstates > 1) { 
@@ -286,11 +287,11 @@ smoothing_EKF_interp_joint <- function(env_obj) {
 							
 							for (k in 1:(env_obj$nstates-1)) {
 											
-								env_obj$interact_intensity_draw_smoothed[part_with_neibs[,s], k] <- rlnorm(n=num_part_with_neibs, meanlog=env_obj$interact_mu_draw_smoothed[ part_with_neibs[,s] ,k] * neib_fracs_smoothed[ part_with_neibs[,s],k], sdlog=env_obj$interact_pars$known_sd[k])
+								env_obj$interact_intensity_draw_smoothed[part_with_neibs[,s], k] <- keep_finite(rlnorm(n=num_part_with_neibs, meanlog=env_obj$interact_mu_draw_smoothed[ part_with_neibs[,s] ,k] * neib_fracs_smoothed[ part_with_neibs[,s],k], sdlog=env_obj$interact_pars$known_sd[k]))
 							}
 						
 							#multiply by interaction draw, but condition on the behavior that ocurred before
-							densities_smoothed[,,s] <- densities_smoothed[,,s] * env_obj$interact_intensity_draw_smoothed[,,s][ cbind(1:env_obj$npart, z_prev) ]
+							densities_smoothed[,,s] <- keep_finite(densities_smoothed[,,s] * env_obj$interact_intensity_draw_smoothed[ cbind(1:env_obj$npart, z_prev) ])
 							
 						}
 												
@@ -310,7 +311,7 @@ smoothing_EKF_interp_joint <- function(env_obj) {
 				}
 
 				#get everything except for lambda
-				env_obj$Xpart_history_smoothed[ i, ,, s] <- env_obj$Xpart_history[ i, c("X","Y","logv","bearing_rad","turn_rad","lambda","region"), indices[s,], s]
+				env_obj$Xpart_history_smoothed[ i, ,, s] <- env_obj$Xpart_history[ i, var_subset, indices[s,], s]
 			
 			}			
 			else {
@@ -330,18 +331,18 @@ smoothing_EKF_interp_joint <- function(env_obj) {
 					for (k in 1:env_obj$nstates) {
 						#Hx_tmp <- Hx(env_obj$mk=env_obj$mk_prev_smoothed[,k,p,s], dtprev=reg_dt)
 					
-						Fx_tmp <- env_obj$Fx(mk=env_obj$mk_prev_smoothed[,k,p,s], dtprev=env_obj$reg_dt)
+						Fx_tmp <- keep_finite(env_obj$Fx(mk=env_obj$mk_prev_smoothed[,k,p,s], dtprev=env_obj$reg_dt))
 						
 																							
-						env_obj$Pk_curr_smoothed[,,k, p,s] <- as.matrix(Matrix::nearPD(Fx_tmp %*% env_obj$Pk_prev_smoothed[,,k,p,s] %*% t(Fx_tmp) + env_obj$Qt[,,k,p,s], ensureSymmetry=TRUE)$mat) #R_{t+1}
+						env_obj$Pk_curr_smoothed[,,k, p,s] <- keep_finite(as.matrix(Matrix::nearPD(keep_finite(keep_finite(keep_finite(Fx_tmp %*% env_obj$Pk_prev_smoothed[,,k,p,s]) %*% t(Fx_tmp)) + env_obj$Qt[,,k,p,s]), ensureSymmetry=TRUE)$mat)) #R_{t+1}
 						#env_obj$Pk_curr_smoothed[1:2,1:2,k, p,s] <- as.matrix(Matrix::nearPD(Hx_tmp%*%env_obj$Pk_prev_smoothed[,,k,p,s]%*%t(Hx_tmp) + Qt[1:2,1:2,k,p,s], ensureSymmetry=TRUE)$mat) #R_{t+1}
 						
-						env_obj$mk_curr_smoothed[c("X","Y"),k ,p,s] <- env_obj$h(mk=env_obj$mk_prev_smoothed[,k,p,s], dtprev=env_obj$reg_dt)
+						env_obj$mk_curr_smoothed[c("X","Y"),k ,p,s] <- keep_finite(env_obj$h(mk=env_obj$mk_prev_smoothed[,k,p,s], dtprev=env_obj$reg_dt))
 					}
 				}
 			
 				for (s_ind in 1:env_obj$smooth_iter) {
-					env_obj$mk_curr_smoothed["logv",,,s] <- env_obj$Xpart_history_smoothed[i+1,"logv",s_ind,s]
+					env_obj$mk_curr_smoothed["logv",,,s] <- env_obj$Xpart_history_smoothed[i+1,"log_speed",s_ind,s]
 					env_obj$mk_curr_smoothed["bearing_rad",,,s] <- normalize_angle(env_obj$mk_prev_smoothed["bearing_rad",,,s] + env_obj$Xpart_history_smoothed[i+1,"turn_rad",s_ind,s])
 					
 					for (k in 1:env_obj$nstates) {
@@ -351,9 +352,8 @@ smoothing_EKF_interp_joint <- function(env_obj) {
 							#							theta=env_obj$Xpart_history[i,"turn_rad",p,s], dtprev=reg_dt) 					
 							
 							#use wrapped normal
-							#densities_smoothed[ p,k, s] <- mvtnorm::dmvnorm(x=env_obj$Xpart_history_smoothed[i+1,c("X","Y","logv","bearing_rad"), s_ind, s], mean=env_obj$mk_curr_smoothed[,k,p,s], sigma=env_obj$Pk_curr_smoothed[,,k,p,s])
-							densities_smoothed[ p,k, s] <- mvtnorm::dmvnorm(x=env_obj$Xpart_history_smoothed[i+1, c("X","Y","logv"), s_ind, s], mean=env_obj$mk_curr_smoothed[1:3,k,p,s], sigma=env_obj$Pk_curr_smoothed[1:3,1:3,k,p,s])
-							densities_smoothed[ p,k, s] <- densities_smoothed[ p,k, s] * dwrpnorm_tmp(x=env_obj$Xpart_history_smoothed[i+1,"bearing_rad", s_ind, s], mean=env_obj$mk_curr_smoothed["bearing_rad",k,p,s], sd=sqrt(env_obj$Pk_curr_smoothed[4,4,k,p,s]))
+							densities_smoothed[ p,k, s] <- keep_finite(mvtnorm::dmvnorm(x=env_obj$Xpart_history_smoothed[i+1, c("X","Y","log_speed"), s_ind, s], mean=env_obj$mk_curr_smoothed[1:3,k,p,s], sigma=env_obj$Pk_curr_smoothed[1:3,1:3,k,p,s]))
+							densities_smoothed[ p,k, s] <- keep_finite(densities_smoothed[ p,k, s] * keep_finite(dwrpnorm_tmp(x=env_obj$Xpart_history_smoothed[i+1,"bearing_rad", s_ind, s], mean=env_obj$mk_curr_smoothed["bearing_rad",k,p,s], sd=sqrt(env_obj$Pk_curr_smoothed[4,4,k,p,s]))))
 							
 							#densities_smoothed[ p,k ] <- mvtnorm::dmvnorm(x=env_obj$Xpart_history_smoothed[i+1,c("X","Y"), s_ind, s], mean=env_obj$mk_curr_smoothed[1:2,k,p,s], sigma=env_obj$Pk_curr_smoothed[1:2,1:2,k,p,s])
 			
@@ -400,12 +400,12 @@ smoothing_EKF_interp_joint <- function(env_obj) {
 							
 							for (k in 1:(env_obj$nstates-1)) {
 											
-								env_obj$interact_intensity_draw_smoothed[part_with_neibs[,s], k] <- rlnorm(n=num_part_with_neibs, meanlog=env_obj$interact_mu_draw_smoothed[ part_with_neibs[,s] ,k] * neib_fracs_smoothed[ part_with_neibs[,s], k], 
-																										   sdlog=env_obj$interact_pars$known_sd[k])
+								env_obj$interact_intensity_draw_smoothed[part_with_neibs[,s], k] <- keep_finite(rlnorm(n=num_part_with_neibs, meanlog=env_obj$interact_mu_draw_smoothed[ part_with_neibs[,s] ,k] * neib_fracs_smoothed[ part_with_neibs[,s], k], 
+																										   sdlog=env_obj$interact_pars$known_sd[k]))
 							}
 						
 							#multiply by interaction draw, don;t condition on the behavior that ocurred before
-							densities_smoothed[,,s] <- densities_smoothed[,,s] * env_obj$interact_intensity_draw_smoothed[,,s]
+							densities_smoothed[,,s] <- keep_finite(densities_smoothed[,,s] * env_obj$interact_intensity_draw_smoothed)
 							
 						}
 												
@@ -439,7 +439,7 @@ smoothing_EKF_interp_joint <- function(env_obj) {
 				
 				#if (interact) { env_obj$spatial_interact_pars_smoothed[,,s] <- env_obj$spatial_interact_pars_smoothed[indices[s,],,s] }
 				
-				env_obj$Xpart_history_smoothed[ i, c("X","Y","logv","bearing_rad","turn_rad","region"),, s] <- env_obj$Xpart_history[ i, c("X","Y","logv","bearing_rad","turn_rad","region"), indices[s,], s]
+				env_obj$Xpart_history_smoothed[ i, ,, s] <- env_obj$Xpart_history[ i, var_subset, indices[s,], s]
 			
 			}
 			
@@ -464,7 +464,7 @@ smoothing_EKF_interp_joint <- function(env_obj) {
 			if (! ((i-1) %in% smooth_steps)) { 
 				#print("adding missing")
 				#print(env_obj$Xpart_history[ i-1,c("X","Y","logv","bearing_rad","turn_rad","lambda","region") ,1, s])  
-				env_obj$Xpart_history_smoothed[ i-1, ,, s] <- env_obj$Xpart_history[ i-1,c("X","Y","logv","bearing_rad","turn_rad","lambda","region") ,indices[s,], s]  
+				env_obj$Xpart_history_smoothed[ i-1, ,, s] <- env_obj$Xpart_history[ i-1, var_subset,indices[s,], s]  
 			
 			}						
 
@@ -485,12 +485,14 @@ smoothing_EKF_interp_joint <- function(env_obj) {
 		steps_turn <- steps[ (steps-1) %in% steps]
 		dxy <- env_obj$Xpart_history_smoothed[steps+1,c("X","Y"),,s] - env_obj$Xpart_history_smoothed[steps,c("X","Y"),,s]
 		dist_xy <- apply(dxy, c(1,3), function(x) sqrt(sum(x^2)))
-		env_obj$Xpart_history_smoothed[steps, "logv",,s ] <- log_safe(dist_xy/env_obj$reg_dt)
+		env_obj$Xpart_history_smoothed[steps, "log_speed",,s ] <- log_safe(dist_xy/env_obj$reg_dt)
 		env_obj$Xpart_history_smoothed[ steps, "bearing_rad",,s ] <- normalize_angle(atan2(y=dxy[,"Y",], x=dxy[,"X",]))
 		env_obj$Xpart_history_smoothed[ steps+1, "turn_rad",,s] <- normalize_angle(env_obj$Xpart_history_smoothed[ steps+1, "bearing_rad",,s] - env_obj$Xpart_history_smoothed[ steps, "bearing_rad",,s])
 
 		
 	}
+	
+	env_obj$Xpart_history_smoothed[,"speed",,] <- exp_safe(env_obj$Xpart_history_smoothed[,"log_speed",,])
 	
 	if (env_obj$smooth_parameters == FALSE) {
 		rm(list=c("mu_smoothed", "transition_mat_smoothed", "sigma_pars_smoothed", "tau_pars_smoothed", "Particle_errvar_smoothed", "spatial_interact_pars_smoothed"), envir=env_obj)

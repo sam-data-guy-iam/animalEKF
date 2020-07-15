@@ -20,7 +20,7 @@ initialize_arrays_EKF_1d_interp_joint <- function(env_obj) {
 
 
 	env_obj$Xpart_history <- array(NA, dim=c(env_obj$N, 6, env_obj$npart, env_obj$nsharks), 
-								   dimnames=list(env_obj$Nnames, c("X","logv","lambda","time_in_state","state_change","time_to_next"),
+								   dimnames=list(env_obj$Nnames, c("X","velocity","lambda","time_in_state","state_change","time_to_next"),
 											     env_obj$pnames, env_obj$shark_names))
 	env_obj$Xpart_history[,"time_to_next",,] <- env_obj$reg_dt
 
@@ -30,6 +30,7 @@ initialize_arrays_EKF_1d_interp_joint <- function(env_obj) {
 										  
 											
 	env_obj$error_beforesamp_quantiles <- env_obj$error_final_quantiles <- array(NA, dim=c(env_obj$N, 3, env_obj$nsharks), dimnames=list(env_obj$Nnames, c("Q10","Q50","Q90"), env_obj$shark_names))
+	env_obj$error_beforesamp_allpart <- array(NA, dim=c(env_obj$N, env_obj$npart, env_obj$nsharks), dimnames=list(env_obj$Nnames, env_obj$pnames, env_obj$shark_names))
 
 	#prior matrix for state switching:
 	#initialize transition probabilities one for each space and for each particle.  use means initially so all regions are equal for each particle

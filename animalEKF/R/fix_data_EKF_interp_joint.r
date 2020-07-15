@@ -1,5 +1,63 @@
 fix_data_EKF_interp_joint <- function(env_obj) {
 
+	# confidence plot
+	env_obj$loc_pred_plot_conf <- min(max(env_obj$loc_pred_plot_conf, 0.05), 0.95)
+
+	if (length(env_obj$logvelocity_truncate) != 2) {
+		print(env_obj$logvelocity_truncate)
+		stop("logvelocity_truncate must be of length 2")
+	}
+	
+	if (diff(env_obj$logvelocity_truncate[1:2]) <= 0) {
+		print(env_obj$logvelocity_truncate)
+		stop("The second value of logvelocity_truncate must be strictly > the first")
+	}
+		
+	# truncation options
+	if (is.null(env_obj$area_map)) {
+		env_obj$truncate_to_map <- FALSE
+	}
+
+	if (env_obj$truncate_to_map == FALSE) {
+		env_obj$do_trunc_adjust <- FALSE
+		env_obj$enforce_full_line_in_map <- FALSE
+	}
+	
+	
+	# make sure if truncate, that all observed locations are inside the map
+	if (env_obj$truncate_to_map) {
+	
+		observed_points <- sp::SpatialPoints(env_obj$d[,c("X","Y"),drop=FALSE])
+		observed_points@proj4string <- env_obj$area_map@proj4string   
+ 
+		inside <- rgeos::gContains(env_obj$area_map, observed_points)
+		if (any(inside == FALSE)) {
+			print("Truncation to map will be performed, but the following observed points were outside the map:")
+			print(env_obj$d[inside == FALSE,,drop=FALSE])
+			
+		}
+		
+		# now truncate
+		env_obj$d <- env_obj$d[inside,,drop=FALSE]
+		
+		# now do the same with true locations, if provided
+		if (env_obj$compare_with_known) {
+			true_points <- sp::SpatialPoints(env_obj$known_regular_step_ds[,c("X","Y"),drop=FALSE])
+			true_points@proj4string <- env_obj$area_map@proj4string   
+ 
+			inside <- rgeos::gContains(env_obj$area_map, true_points)
+			if (any(inside == FALSE)) {
+				print("Truncation to map will be performed, but the following true points were outside the map:")
+				print(env_obj$known_regular_step_ds[inside == FALSE,,drop=FALSE])
+			
+			}
+			env_obj$known_regular_step_ds <- env_obj$known_regular_step_ds[inside,,drop=FALSE]
+		}
+	}
+		
+	
+
+	# now conduct filtering on observations		
 	
 	env_obj$d <- env_obj$d[ order(env_obj$d$date_as_sec),]
 	env_obj$first_time <- min(env_obj$d$date_as_sec)
@@ -133,23 +191,15 @@ fix_data_EKF_interp_joint <- function(env_obj) {
 		env_obj$interact <- FALSE
 	}
 
-	if (is.null(env_obj$area_map)) {
-		env_obj$truncate_to_map <- FALSE
-	}
-
-	if (env_obj$truncate_to_map==FALSE) {
-		env_obj$do_trunc_adjust <- FALSE
-	}
 	
-	
-	if (env_obj$update_params_for_obs_only) {
-		env_obj$update_eachstep <- FALSE		
-	}
-
 	print(paste("env_obj$nstates:", env_obj$nstates))
 	print(paste("env_obj$interactions", env_obj$interact))
 
-
+	if (env_obj$update_params_for_obs_only) {
+		env_obj$update_eachstep <- FALSE		
+	}
+	
+	
 	#keep the initial interval, plus any that come after more than max_int_wo_obs observations
 	#env_obj$first_intervals <- lapply(env_obj$shark_intervals, function(x) c(x[1], x[-1][ diff(x) > max_int_wo_obs ]) )
 	#second interval
@@ -230,10 +280,22 @@ fix_data_EKF_interp_joint <- function(env_obj) {
 
 	print(sort(colnames(env_obj$d)))
 
-	env_obj$d <- env_obj$d[,c("rowid","shark_obs_index","X","Y","logvelocity","date_as_sec",
-							   "angle_velocity","turn.angle.rad","bearing.to.east.tonext.rad","region","time_to_next","dx_to_next",
+	env_obj$d <- env_obj$d[,c("rowid","shark_obs_index","X","Y","log_speed","date_as_sec",
+							   "speed","turn.angle.rad","bearing.to.east.tonext.rad","region","time_to_next","dx_to_next",
 							   "dy_to_next","lambda","state.guess2","next.guess2","t_intervals")]
 
+
+	# check logvelocity_truncate
+	log_speed_extreme <- ! is.na(env_obj$d$log_speed) & ((env_obj$d$log_speed < env_obj$logvelocity_truncate[1]) | (env_obj$d$log_speed > env_obj$logvelocity_truncate[2]))
+	if (any(log_speed_extreme)) {
+		print("log-speed is restricted to:")
+		print(env_obj$logvelocity_truncate)
+		print("The following observations have log-speed outside of these ranges (large values are more of a concern)")
+		print(env_obj$d[log_speed_extreme, c("X", "Y", "log_speed", "speed", "turn.angle.rad", "date_as_sec", "time_to_next", "dx_to_next", "dy_to_next", "region")])
+	
+	
+	}
+	
 
 	rownames(env_obj$d) <- 1:nrow(env_obj$d)
 	env_obj$d <- as.matrix(env_obj$d)
@@ -248,7 +310,6 @@ fix_data_EKF_interp_joint <- function(env_obj) {
 	env_obj$obs_XY_bbox[1,"Y"] <- max(env_obj$obs_XY_bbox[1,"Y"], env_obj$bbox[2,1])
 	env_obj$obs_XY_bbox[2,"Y"] <- min(env_obj$obs_XY_bbox[2,"Y"], env_obj$bbox[2,2])
 	
-	invisible(NULL)
 	
 	nus <- length(unique(env_obj$states, na.rm=TRUE))
 	nust <- env_obj$nstates
@@ -270,5 +331,8 @@ fix_data_EKF_interp_joint <- function(env_obj) {
 	if (nus != env_obj$nstates || nust != env_obj$nstates) {
 		print(paste("Observed/true data has", nus, "and", nust, "behaviors, but choose to model with", env_obj$nstates, "behaviors"))
 	}
+	
+	invisible(NULL)
+
 	
 }

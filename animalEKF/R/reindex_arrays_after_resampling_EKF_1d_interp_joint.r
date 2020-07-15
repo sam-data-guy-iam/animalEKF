@@ -41,6 +41,8 @@ reindex_arrays_after_resampling_EKF_1d_interp_joint <- function(env_obj) {
 		if (env_obj$resamp_full_hist) { i_tmp <- 1:(env_obj$i-1) }
 		else { i_tmp <- env_obj$steps_to_resamp[[ s ]] }
 		
+		env_obj$mk_actual_history[i_tmp,,,s] <- env_obj$mk_actual_history[i_tmp, ,env_obj$indices[,s], s, drop=FALSE]
+		
 		env_obj$lambda_matrix_beforesamp[,env_obj$steps_to_resamp[[ s ]],s] <- env_obj$lambda_matrix[,env_obj$steps_to_resamp[[ s ]],s]
 		
 		env_obj$lambda_matrix[,i_tmp,s] <- env_obj$lambda_matrix[ env_obj$indices[,s],i_tmp,s]

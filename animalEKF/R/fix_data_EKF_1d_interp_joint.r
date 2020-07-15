@@ -1,5 +1,10 @@
 fix_data_EKF_1d_interp_joint <- function(env_obj) {
 
+	# confidence plot
+	env_obj$loc_pred_plot_conf <- min(max(env_obj$loc_pred_plot_conf, 0.05), 0.95)
+	# normal 
+	env_obj$loc_pred_plot_conf_constant <- qnorm(p=0.5 + env_obj$loc_pred_plot_conf/2)
+
 
 	env_obj$d <- env_obj$d[ order(env_obj$d$date_as_sec),]
 	env_obj$first_time <- min(env_obj$d$date_as_sec)	
@@ -164,14 +169,13 @@ fix_data_EKF_1d_interp_joint <- function(env_obj) {
 
 	#nstates <- max(length(unique(states)), nstates)
 
-	env_obj$d <- env_obj$d[,c("shark_obs_index","X","logvelocity","date_as_sec","angle_velocity","time_to_next",
+	env_obj$d <- env_obj$d[,c("shark_obs_index","X","velocity","date_as_sec","time_to_next",
 							"lambda","state.guess2","next.guess2","t_intervals")]
 
 
 	env_obj$d <- as.matrix(env_obj$d)
 	rownames(env_obj$d) <- 1:nrow(env_obj$d)
 	#for 1D log velocity is just angle_velocity
-	env_obj$d[, "logvelocity" ] <- env_obj$d[, "angle_velocity" ] 
 	
 	nus <- length(unique(env_obj$states, na.rm=TRUE))
 	nust <- env_obj$nstates

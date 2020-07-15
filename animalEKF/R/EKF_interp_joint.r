@@ -2,13 +2,15 @@ EKF_interp_joint <- function(area_map, d,
 							 npart=100, sigma_pars, tau_pars, 
 							 mu0_pars=list(alpha=c(-4.5 ,-2), beta=c(0,0)), V0_pars=list(c(0.25, 0.25), c(0.25, 0.25)), 
 							 Errvar0=rep(list(diag(2)), 2), Errvar_df=c(20, 20), Particle_errvar0, Particle_err_df=20,							 
-							 dirichlet_init=c(9,2,2,7), maxStep=NULL, 
+							 dirichlet_init=c(9,2,2,7), logvelocity_truncate=c(-10, 15), maxStep=NULL, 
 							 delaysample=1, state_favor=c(1,1.5), nstates=2,
-							 centroids=matrix(c(0,0), ncol=2), truncate_to_map=TRUE, do_trunc_adjust=TRUE, lowvarsample=TRUE, time_radius=60*30, spat_radius=300, min_num_neibs=10,
+							 centroids=matrix(c(0,0), ncol=2), truncate_to_map=TRUE, enforce_full_line_in_map=TRUE, do_trunc_adjust=TRUE, 
+							 lowvarsample=TRUE, time_radius=60*30, spat_radius=300, min_num_neibs=10,
 							 interact=TRUE, interact_pars=list(mu0=0, precision0=2, known_precision=2), neff_sample=1,  time_dep_trans=FALSE, time_dep_trans_init=dirichlet_init,
-							 smoothing=FALSE, fix_smoothed_behaviors=TRUE, smooth_parameters=TRUE, reg_dt=150, max_int_wo_obs=NULL, resamp_full_hist=TRUE, compare_with_known=FALSE,
-							 known_trans_prob=NULL, known_foraging_prob=NULL, known_regular_step_ds=NULL,
-							 update_eachstep=FALSE, update_params_for_obs_only=FALSE, output_plot=TRUE, output_dir=getwd()) {
+							 smoothing=FALSE, fix_smoothed_behaviors=TRUE, smooth_parameters=TRUE, reg_dt=120, max_int_wo_obs=NULL, resamp_full_hist=TRUE, compare_with_known=FALSE,
+							 known_trans_prob=NULL, known_foraging_prob=NULL, known_regular_step_ds=NULL, 
+							 update_eachstep=FALSE, update_params_for_obs_only=FALSE, output_plot=TRUE, loc_pred_plot_conf=0.5, output_dir=getwd(),
+							 pdf_prefix="EKF_2D") {
 
 
 	#current list of inputs
@@ -37,29 +39,12 @@ EKF_interp_joint <- function(area_map, d,
 	fix_data_EKF_interp_joint(env_obj=myenv)
 									 
 	
-	#find regular observations where 
-	#reg_with_obs <- as.numeric(included_intervals %in% t_intervals)
-	# max_int_wo_obs <- max(min( floor(N/2-1), max_int_wo_obs),0)
-	# prev_steps_with_obs <- cum_lags(x=reg_with_obs, lags=max_int_wo_obs)
-	# included_intervals <- c(included_intervals[ 1:max_int_wo_obs ], included_intervals[ -c(1:max_int_wo_obs) ][ prev_steps_with_obs > 0 ])
-
-
-	# step_skipped <- !((included_intervals -1) %in% included_intervals)
-	# step_skipped[ 1 ] <- FALSE
-
-
-
-	#print(prev_steps_with_obs)
-	#print("included regular intervals (accounting for missing obs>thresh")
-	#print(included_intervals)
-	#print(paste(N-length(included_intervals),"intervals exclued"))
-
-
+	
 
 	myenv$state_favor <- myenv$state_favor[1:myenv$nstates]
 	myenv$state_favor <- pmax(abs(myenv$state_favor), 0.1)
 
-	myenv$d[,"logvelocity" ] <- log_safe(myenv$d[, "angle_velocity" ])
+	myenv$d[,"log_speed" ] <- log_safe(myenv$d[, "speed" ])
 
 
 	  
@@ -83,7 +68,8 @@ EKF_interp_joint <- function(area_map, d,
 	names(myenv$steps_to_resamp) <- myenv$shark_names
 
 	
-	par(mfcol=c(2,3))
+	par(mfrow=c(2,3))
+
 
 	for (ii in myenv$included_intervals) {
 
@@ -112,7 +98,7 @@ EKF_interp_joint <- function(area_map, d,
 		ids <- ids[ !is.na(ids) ]
 
 		
-		myenv$ynext <- myenv$d[ ids, c("X","Y","date_as_sec","t_intervals","state.guess2","shark_obs_index"), drop=FALSE]
+		myenv$ynext <- myenv$d[ ids, , drop=FALSE]
 			
 		rownames(myenv$ynext) <- myenv$tags[ ids ]
 			
@@ -126,7 +112,7 @@ EKF_interp_joint <- function(area_map, d,
 				myenv$ynext <- myenv$ynext[ order(rownames(myenv$ynext), myenv$ynext[,"date_as_sec",drop=FALSE]), ,drop=FALSE]
 				yobs <- nrow(myenv$ynext)
 				print("observations in interval")
-				print(myenv$ynext)
+				print(myenv$ynext[,c("X","Y","log_speed","speed", "bearing.to.east.tonext.rad","date_as_sec","t_intervals","state.guess2"), drop=FALSE])
 			}
 		}
 		
@@ -150,12 +136,12 @@ EKF_interp_joint <- function(area_map, d,
 		#if there is a shark with actual observations, we have to simulate and resample based on that.
 		
 		print(paste("Regular step", myenv$i))
-		if (length(myenv$sharks_first_obs)) { print(paste("sharks first observed:", paste(myenv$sharks_first_obs, collapse=" "))) }
-		if (length(myenv$sharks_to_sim)) { print(paste("sharks to be simulated:", paste(myenv$sharks_to_sim, collapse=" "))) }
-		if (length(myenv$sharks_with_obs)) { print(paste("sharks with obs:", paste(myenv$sharks_with_obs, collapse=" "))) }
-		#print(first_intervals)
-		#print(shark_intervals)
-
+		
+		if (myenv$nsharks > 1) {
+			if (length(myenv$sharks_first_obs)) { print(paste("sharks first observed:", paste(myenv$sharks_first_obs, collapse=" "))) }
+			if (length(myenv$sharks_to_sim)) { print(paste("sharks to be simulated:", paste(myenv$sharks_to_sim, collapse=" "))) }
+			if (length(myenv$sharks_with_obs)) { print(paste("sharks with obs:", paste(myenv$sharks_with_obs, collapse=" "))) }
+		}
 
 		
 		if (length(myenv$sharks_first_obs)) {
@@ -171,7 +157,7 @@ EKF_interp_joint <- function(area_map, d,
 				for (s in myenv$sharks_first_obs) {
 				
 					z <- myenv$lambda_matrix[,myenv$i, s]
-					newV <- myenv$Xpart_history[myenv$i,"logv",,s]
+					newV <- myenv$Xpart_history[myenv$i,"log_speed",,s]
 					
 					#index matrix for accessing terms and updating
 					access_mu <- access_V <- cbind(myenv$state_names[z], "alpha", "mu", myenv$pnames, s)
@@ -366,10 +352,12 @@ EKF_interp_joint <- function(area_map, d,
 			calculate_resampling_indices_EKF_interp_joint(env_obj=myenv)
 			
 			if (length(myenv$sharks_to_resample) > 0) {
-				print(paste("Unique indices selected:", paste(myenv$resample_history[myenv$i, myenv$sharks_with_obs] * myenv$npart, collapse=" ")))
-							
-				print("sharks to resample")
-				print(myenv$sharks_to_resample)		
+				print(paste("Unique resampling indices selected:", paste(myenv$resample_history[myenv$i, myenv$sharks_with_obs] * myenv$npart, collapse=" ")))
+				
+				if (myenv$nsharks > 1) {
+					print("sharks to resample")
+					print(myenv$sharks_to_resample)
+				}	
 				#reindex sufficient statistics
 				reindex_arrays_after_resampling_EKF_interp_joint(env_obj=myenv)
 				
@@ -490,7 +478,7 @@ EKF_interp_joint <- function(area_map, d,
 					Fx_tmp <- myenv$Fx(mk=myenv$mk_actual[,p,s], dtprev=myenv$reg_dt)
 					myenv$Pk_prev[,,znew[ p ],p,s] <- as.matrix(Matrix::nearPD(Fx_tmp %*% myenv$Pk_actual[,,p,s] %*% t(Fx_tmp) + myenv$Qt[,,z[ p ],p,s], ensureSymmetry=TRUE)$mat) #R_{t+1}
 					
-					myenv$Xpart_history[myenv$i + 1,c("X","Y","logv","bearing_rad"),p,s] <- reject_sampling(mu=myenv$mk_prev[,znew[ p ],p,s], cmat=myenv$Pk_prev[,,znew[ p ],p,s], prev_val=myenv$Xpart_history[myenv$i, c("X","Y","logv","bearing_rad"),p,s], obj=myenv)$val		
+					myenv$Xpart_history[myenv$i + 1,c("X","Y","log_speed","bearing_rad"),p,s] <- reject_sampling(mu=myenv$mk_prev[,znew[ p ],p,s], cmat=myenv$Pk_prev[,,znew[ p ],p,s], prev_val=myenv$Xpart_history[myenv$i, c("X","Y","log_speed","bearing_rad"),p,s], obj=myenv)$val		
 					myenv$Xpart_history[myenv$i + 1, "region", p, s] <- which_region(myenv$Xpart_history[myenv$i + 1,c("X","Y"),p,s], centroid=myenv$centroids)
 				}
 				
@@ -522,14 +510,17 @@ EKF_interp_joint <- function(area_map, d,
 		dxy <- array(dxy, dim=c(length(steps), 2, myenv$npart), dimnames=list(steps, c("X","Y"), myenv$pnames)) 
 		dist_xy <- apply(dxy, c(1,3), function(x) sqrt(sum(x^2)))
 		
-		myenv$Xpart_history[steps, "logv",,s ] <- log_safe(dist_xy/myenv$reg_dt)
+		myenv$Xpart_history[steps, "log_speed",,s ] <- log_safe(dist_xy/myenv$reg_dt)
 		
 		myenv$Xpart_history[ steps, "bearing_rad",,s ] <- normalize_angle(atan2(y=dxy[,"Y",], x=dxy[,"X",]))
 		
 		myenv$Xpart_history[ steps+1, "turn_rad",,s] <- normalize_angle(myenv$Xpart_history[ steps+1, "bearing_rad",,s] - myenv$Xpart_history[ steps, "bearing_rad",,s])
 	
 	}	
-		 
+	
+	# calculate speed variable
+	myenv$Xpart_history[,"speed",,] <- exp_safe(myenv$Xpart_history[,"speed",,])
+	
 		 
 	rm("i", envir=myenv)
 	rm("indices", envir=myenv) 
@@ -614,7 +605,7 @@ EKF_interp_joint <- function(area_map, d,
 					   "sharks_to_resample", "mu0_range", "before_samp", "part_with_neibs", "output_plot", "maxStep", "fix_smoothed_behaviors",
 					   "MuY", "SigY", "spcoords", "Particle_errvar0", "pred_xt_loc", "wn_seq", "SSquare_particle","sigma_hist_allpart", "Particle_errvar",
 					   "dirichlet_init", "XY_errvar_draw", "step_skipped", "smooth_parameters", "logv_angle_mu_draw", "num_neibs", "Particle_err_df",
-					   "do_trunc_adjust", "truncate_to_map")
+					   "do_trunc_adjust", "truncate_to_map", "mk_actual_history")
 					   
 	unneeded_vars <- unique(unneeded_vars)
 	unneeded_vars <- unneeded_vars[ unneeded_vars %in% names(myenv)]

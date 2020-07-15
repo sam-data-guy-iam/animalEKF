@@ -13,7 +13,12 @@ nice_range <- function(x, ep=0.1) {
   r
  }
 
+# make sure only pick one
+random_which <- function(condition) {
 
+	ii <- sample(x=which(condition), size=1)
+	ii
+}
 
 
 #density plot of predictions
@@ -801,19 +806,20 @@ wt_dist_twostate_loop <- function(wts, mu_guess, xlims, ylims, known_mean, npart
 					npts <- index
 					index <-  (c(1:npart) %in% index)
 					nbold <- sum(index)
-
-					likely_behavior <- apply(wts, 2, function(x) which(x == max(x)))
-					x_overall <- mu_guess[ cbind(likely_behavior, 1:npart) ]
+			
 					
+					likely_behavior <- apply(wts, 2, function(x) random_which(condition=c(x== max(x))))
+
+					x_overall <- mu_guess[ cbind(likely_behavior, 1:npart) ]
+
 					plot(x=-5,y=-10, xlim=xlims, ylim=ylims, yaxs="i", xlab="", 
 						ylab="Density", main=expression("Overall weight"==~w[t]^{"(n)"}),las=1, cex.main=1.1, cex.axis=0.7)
 					mtext(side=1, text=var_name, line=2)
 					#abline(v=known_mean[ behavior ])
-
 					if (sep_col==FALSE) {
 						legend("topleft", col=c("lightgray", "red"), pch=19, legend=c("particle","best 15%"), lwd=2, ncol=2, cex=0.7)
 					}
-					
+
 					
 					#plot unconditional weights
 					segments(x0=x_overall, x1=x_overall, y0=rep(0, npart), y1= colSums(wts), col=colors, lwd=wts_lwd[,behavior], lty=1)
@@ -827,7 +833,6 @@ wt_dist_twostate_loop <- function(wts, mu_guess, xlims, ylims, known_mean, npart
 					mtext(side=1, text=var_name, line=2)
 					
 					abline(v=known_mean)
-					
 					if (sep_col==FALSE) {
 						legend("topleft", col=c("lightgray", "red", "lightgray","lightgray"), legend=c("particle","best 15%"), lwd=2, ncol=2, cex=0.7,
 								pch=c(19, 19, 15, 17), pt.cex=1)
@@ -839,20 +844,17 @@ wt_dist_twostate_loop <- function(wts, mu_guess, xlims, ylims, known_mean, npart
 							
 					}
 					
-					
 					for (kk in 1:2) {
 
 						segments(x0=mu_guess[kk,], x1=mu_guess[kk,], y0=rep(0, npart), y1=wts[kk,], col=colors, lwd=wts_lwd[,kk], lty=c(1,3)[ kk ])
 						points(x=mu_guess[kk,], y=wts[kk,], col=colors, pch=c(15,17)[ kk ], cex=head_cex[,kk])
 					}
-
 					#legend(x=par()$usr[ 1 ], y=ylims[ 2 ], pch=c(15,17), col=rep("blue",2), legend=c("type 1", "type 2"), pt.cex=1.5, cex=0.8)
 
 					rug_multicolor(x=mu_guess, ticksize=-0.05, col_vec=rep(colors,2), plot_side=1)
 
 					
 					mtext(text="Particle resampling weights", outer=TRUE, side=3, cex=1.25, font=2)
-
 
 				}
 
@@ -1013,7 +1015,6 @@ convergence_rugplot_twostate <- function(xlims, known_mean, max_iter, iter, mu_g
 					ymax <- floor(max_iter/3)
 
 					y_axis <- seq(1, 3*ymax+1, length.out=4)
-					#print(y_axis)
 
   				    plot(x=10, y=10, ylim=c(-2*max_iter -1, -1), xlim=xlims, yaxt="n", xlab=paste("mean",var_name), ylab="Iteration",
 					     main=paste("Convergence of particle guesses of mean",var_name), cex.main=1.1)

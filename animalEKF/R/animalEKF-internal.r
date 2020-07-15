@@ -78,24 +78,38 @@ eff_ss <- function(p) {
   1/sum(p^2)
 }  
 
+# #this estimates by MCMC the probability of being inside the bounds
+# fraction_inside <- function(mu, cmat, nsim=100, obj) {
+    # #npart
+	
+	# adjust_mat <- matrix(0, ncol=obj$nstates, nrow=obj$npart)
+		
+	# for (p in 1:obj$npart) {
+		# for (k in 1:obj$nstates) {
+	      
+			# pts <- mvtnorm::rmvnorm(n=nsim, mean=mu[p,,k,1], sigma=cmat[p,,,k,1])
+			# colnames(pts) <- c("X","Y")
+			# pts <- sp::SpatialPoints(pts)
+			# pts@proj4string <- obj$area_map@proj4string 
+			# adjust_mat[p,k] <- mean(rgeos::gContains(obj$area_map, pts, byid=TRUE))
+		# }
+		
+	# }  
+    # adjust_mat
+# }
+
+
+
 #this estimates by MCMC the probability of being inside the bounds
 fraction_inside <- function(mu, cmat, nsim=100, obj) {
-    #npart
+        
+	pts <- mvtnorm::rmvnorm(n=nsim, mean=mu, sigma=cmat)
+	colnames(pts) <- c("X","Y")
+	pts <- sp::SpatialPoints(pts)
+	pts@proj4string <- obj$area_map@proj4string 
 	
-	adjust_mat <- matrix(0, ncol=obj$nstates, nrow=obj$npart)
-		
-	for (p in 1:obj$npart) {
-		for (k in 1:obj$nstates) {
-	      
-			pts <- mvtnorm::rmvnorm(n=nsim, mean=mu[p,,k,1], sigma=cmat[p,,,k,1])
-			colnames(pts) <- c("X","Y")
-			pts <- sp::SpatialPoints(pts)
-			pts@proj4string <- obj$area_map@proj4string 
-			adjust_mat[p,k] <- mean(rgeos::gContains(obj$area_map, pts, byid=TRUE))
-		}
-		
-	}  
-    adjust_mat
+	mean(rgeos::gContains(obj$area_map, pts, byid=TRUE))
+
 }
 
 #see if line trajectory of the X-Y points drawn is in the boundary
@@ -106,37 +120,28 @@ reject_sampling <- function(mu, cmat, maxiter=500, prev_val, obj) {
 	
 	
     while(inside ==FALSE & iter < maxiter) {
-       sim_val <- mvtnorm::rmvnorm(n=1, mean=mu, sigma=cmat)
+		sim_val <- mvtnorm::rmvnorm(n=1, mean=mu, sigma=cmat)
+		new_traj <- cbind(X=c(prev_val[1], sim_val[1]), Y=c(prev_val[2], sim_val[2]))
 	   
-
-	   #names(sim_val) <- c("X","Y","logvelocity","bearing.to.east.tonext.rad")
-	   
-	  # 	if (is.null(sim_val)) { print("sim_val is NULL"); print(iter) }
-	   new_traj <- cbind(X=c(prev_val[1], sim_val[1]), Y=c(prev_val[2], sim_val[2]))
-       
-	   new_traj <- sp::SpatialLines(list(sp::Lines(sp::Line(new_traj), ID=1)))
-	   new_traj@proj4string <- obj$area_map@proj4string
-	   
-	   #need to double it so multiple points
-	   #new_traj <- sp::SpatialPoints(cbind(x=sim_val[c(1,1),1], y=sim_val[c(1,1),2]))
-	   #print(new_traj)   
-       inside <- rgeos::gContains(obj$area_map, new_traj)
-       iter <- iter + 1
+		if (obj$enforce_full_line_in_map) {
+						
+			new_traj <- sp::SpatialLines(list(sp::Lines(sp::Line(new_traj), ID=1)))
+		}
+		else {
+			#just consider end point, not full line connecting them
+			new_traj <- sp::SpatialPoints(new_traj[2,,drop=FALSE])		
+		}
+		new_traj@proj4string <- obj$area_map@proj4string
 		
-		#if (inside==FALSE) { 
-		#	plot(bounds)
-		#    plot(new_traj, col="red", add=TRUE)
-		#	}	
-	 }
+		inside <- rgeos::gContains(spgeom1=obj$area_map, spgeom2=new_traj)
+		iter <- iter + 1
+			
+	}
 	
-    if (iter == maxiter) { sim_val <-  prev_val ; print("exceeded rejection sampling iterations") }
+    if (iter == maxiter) { sim_val <- prev_val ; print("exceeded rejection sampling iterations") }
 	#we use this both for the interpolated and for the 4-variable
-	#if (length(sim_val)==4) { sim_val[ 4 ] <- normalize_angle(sim_val[ 4 ]) }
-	#names(sim_val) <-  c("X", "Y", "logv", "bearing_rad")[ length(sim_val) ]
-	#sim_val
 	
-	par(mfrow=c(2,3))
-    list(val=sim_val, iter=iter)
+	list(val=sim_val, iter=iter)
 }
  
 

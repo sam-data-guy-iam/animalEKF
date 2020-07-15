@@ -26,7 +26,7 @@ plot_diagnostics_step_EKF_1d_interp_joint <- function(env_obj) {
 				
 				for (k in 1:env_obj$nstates) {
 				
-					lines(x=env_obj$mk_prev[1,k,p,ss] + c(-1, 1)*sqrt(env_obj$Pk_prev[1,1,k,p,ss]), y=rep(p+(k-1)*0.5,2), type="l", col=k, lwd=0.1)
+					lines(x=env_obj$mk_prev[1,k,p,ss] + c(-1, 1)*env_obj$loc_pred_plot_conf_constant*sqrt(env_obj$Pk_prev[1,1,k,p,ss]), y=rep(p+(k-1)*0.5,2), type="l", col=k, lwd=0.1)
 				}				
 			}	
 		}
@@ -38,7 +38,7 @@ plot_diagnostics_step_EKF_1d_interp_joint <- function(env_obj) {
 				
 					for (y in 1:env_obj$yobs_sharks[ ss ]) {
 					
-						lines(x=env_obj$MuY[[ ss ]][y,k,p] + c(-1, 1)*sqrt(env_obj$SigY[[ ss ]][y,k,p]), y=rep(p+(k-1)*0.5,2), type="l", col=k, lwd=0.1)
+						lines(x=env_obj$MuY[[ ss ]][y,k,p] + c(-1, 1)*env_obj$loc_pred_plot_conf_constant*sqrt(env_obj$SigY[[ ss ]][y,k,p]), y=rep(p+(k-1)*0.5,2), type="l", col=k, lwd=0.1)
 			
 					}
 								

@@ -55,15 +55,11 @@ sharks_to_sim_interact_EKF_1d_interp_joint <- function(env_obj) {
 									  # rnorm(n=env_obj$npart, mean=spatial_interact_pars[,"mu2", env_obj$s], sd=1/sqrt(spatial_interact_pars[,"precision2", env_obj$s])))
 
 			
-			env_obj$interact_mu_draw <- matrix(rnorm(n=env_obj$npart*(env_obj$nstates - 1), mean=env_obj$spatial_interact_pars[, env_obj$mu_names, env_obj$s], 
-													sd=1/sqrt(env_obj$spatial_interact_pars[,env_obj$prec_names, env_obj$s])), ncol=env_obj$nstates-1, byrow=TRUE)
+			env_obj$interact_mu_draw <- keep_finite(matrix(rnorm(n=env_obj$npart*(env_obj$nstates - 1), mean=env_obj$spatial_interact_pars[, env_obj$mu_names, env_obj$s], 
+													sd=1/sqrt(env_obj$spatial_interact_pars[,env_obj$prec_names, env_obj$s])), ncol=env_obj$nstates-1, byrow=TRUE))
 														
 															  
-		#	print("original mu summary")
-		#	print(apply(interact_mu_draw, 2, summary))
-		#	print(num_neibs[ part_with_neibs,,drop=FALSE])
-		#	print(apply(num_neibs[ part_with_neibs,,drop=FALSE], 1, function(x) x/sum(x)))
-			
+
 			
 			env_obj$neib_fracs[env_obj$part_with_neibs[, env_obj$s],, env_obj$i, env_obj$s] <- t(apply(num_neibs[ env_obj$part_with_neibs[, env_obj$s],,drop=FALSE], 1, function(x) x/sum(x)))
 			#print(neib_fracs[part_with_neibs,, env_obj$i, env_obj$s])
@@ -74,9 +70,9 @@ sharks_to_sim_interact_EKF_1d_interp_joint <- function(env_obj) {
 			for (k in 1:(env_obj$nstates-1)) {
 				
 												
-				env_obj$interact_intensity_draw[env_obj$part_with_neibs[, env_obj$s], k, env_obj$i, env_obj$s ] <- rlnorm(n=num_part_with_neibs, 
+				env_obj$interact_intensity_draw[env_obj$part_with_neibs[, env_obj$s], k, env_obj$i, env_obj$s ] <- keep_finite(rlnorm(n=num_part_with_neibs, 
 																							 meanlog=env_obj$interact_mu_draw[ env_obj$part_with_neibs[, env_obj$s] ,k]*env_obj$neib_fracs[ env_obj$part_with_neibs[, env_obj$s],k, env_obj$i, env_obj$s],
-																							 sdlog=env_obj$interact_pars$known_sd[k])
+																							 sdlog=env_obj$interact_pars$known_sd[k]))
 												
 			}
 			

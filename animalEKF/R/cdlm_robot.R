@@ -26,7 +26,9 @@ ui=shinyUI(fluidPage(
 							        value="0.1,0,0,0.1"),
 								sliderInput('yt_var',"Measurement error variance (Rt) of observed location", value=0.05, min=0.001, max=1, round=FALSE, step=0.1),
 								textInput('Pk_init',"Covariance matrix of particles.\nEnter 4 numbers (comma delimited) for a covariance matrix.   Coerced to PD matrix.",
-							        value="0.25,0,0,0.25")
+							        value="0.25,0,0,0.25"),
+								sliderInput('render_delay','Render delay (sec)',value=3, min=0.1, max=5, round=TRUE, step=0.5)
+
 							   ),
                  mainPanel( 
                             splitLayout(cellWidths = c("50%", "50%"), plotOutput("densplot"), plotOutput("pred_loc")),
@@ -53,6 +55,7 @@ server=shinyServer(function(input, output, session)
 		
 		
 		updateSliderInput(session, "iter",  label="Progress of simulation", value=1, min=1, max=input$max_iter, step=1)
+		render_delay_step <- 1000 * input$render_delay / input$npart
 
 	    #output$speed <- renderUI({
 		#	numericInput("speed","Speed Value :",value = 1.5)
@@ -70,14 +73,14 @@ server=shinyServer(function(input, output, session)
 		#updatesliderInput(session, 'mu_mean',label='Prior mean of velocity mean',value=4, min=-10, max=10, round=FALSE, step=1)
 		#updatesliderInput(session, 'mu_var',label='Prior variance on velocity mean',value=2, min=0.1, max=5, round=FALSE, step=1)								
 	 
-	    yt <- matrix(0, ncol=3, nrow=input$max_iter +1)
-        colnames(yt) <- c("true_v","true_loc","obs_loc")
+	    yt <- matrix(0, ncol=2, nrow=input$max_iter +1)
+        colnames(yt) <- c("true_v","X")
 		
         yt[,"true_v"] <- rnorm(n=input$max_iter +1, mean=input$vel_mu, sd=sqrt(input$vel_var))
-	    yt[,"true_loc"] <- cumsum(c(0, input$delta_t*yt[1:input$max_iter ,"true_v"]))
+	    yt[,"X"] <- cumsum(c(0, input$delta_t*yt[1:input$max_iter ,"true_v"]))
 		
 		#add measurement noise
-		yt[-1,"obs_loc"] <- yt[-1,"true_loc"] + rnorm(n=input$max_iter, mean=0, sd=sqrt(input$yt_var))
+		#yt[-1,"obs_loc"] <- yt[-1,"true_loc"] + rnorm(n=input$max_iter, mean=0, sd=sqrt(input$yt_var))
 		
 		xt_var <- as.numeric(numextractall(input$xt_var))
 		xt_var[1] <- abs(xt_var[1])
@@ -113,7 +116,10 @@ server=shinyServer(function(input, output, session)
 		params$mu_guess = array(NA, dim=c(2,input$max_iter+1,input$npart), dimnames=params$dnames)
 		params$mu_guess["orig","i1",] <- rnorm(n=input$npart, mean=params$mu_pars["mu_mean","orig","i1",], sd=sqrt(params$mu_pars["mu_var","orig","i1",]))
 
-   	    if (input$sep_col) { rainbow_cols <- colorspace::rainbow_hcl(n=input$npart +1, c=200,l=seq(40, 100, length.out=input$npart+1))[1:input$npart] }
+   	    if (input$sep_col) { 
+			rainbow_cols <- colorspace::rainbow_hcl(n=input$npart +1, c=200,l=70, alpha=0.5)[1:input$npart]
+			#rainbow_cols <- colorspace::rainbow_hcl(n=input$npart +1, c=200,l=seq(40, 100, length.out=input$npart+1))[1:input$npart]
+		}
         else { rainbow_cols <- rep("lightgray",input$npart) }
  #      print(rainbow_cols)        		
 			
@@ -132,8 +138,8 @@ server=shinyServer(function(input, output, session)
 		params$xpart[,"orig","i1",] <- params$xpart[,"resamp","i1",] <- params$mk[,,"orig","i1",]
 		
 		
-		loc_axis <- seq(0, ceiling(yt[input$max_iter+1,"obs_loc"]), by=max(round(input$max_iter/5), 1)*input$vel_mu)    
-        xrange <- nice_range(x=yt[,"obs_loc"], ep=0.1)
+		loc_axis <- seq(0, ceiling(yt[input$max_iter+1,"X"]), by=max(round(input$max_iter/5), 1)*input$vel_mu)    
+        xrange <- nice_range(x=yt[,"X"], ep=0.1)
 		#xdens_range <- nice_range(x=params$mu_guess["orig","i1",], ep=0.4)
 		xdens_range <- input$mu_mean + c(-3.5,3.5)*sqrt(input$mu_var)
 	
@@ -204,13 +210,13 @@ server=shinyServer(function(input, output, session)
 				
 					  # params$resamp_colors["orig",input$iter,ord_mu] <- rainbow_cols 
 					
-				    for (nn in 1:input$npart) {   
+						for (nn in 1:input$npart) {   
 						
-						params$mk_prev[,1,"orig",input$iter,nn] <- f(xt=params$mk[,1,"orig",input$iter-1,nn], newV=params$vel_guess["orig",input$iter,nn]) 
-						params$Pk_prev[,,"orig",input$iter,nn] <- as.matrix(Matrix::nearPD(Fxmat%*%params$Pk[,,"orig",input$iter-1,nn]%*%t(Fxmat) + xt_var, ensureSymmetry=TRUE)$mat)
-						params$Ydist["MuY","orig",input$iter,nn] 	<- h(xt=params$mk_prev[,,"orig",input$iter,nn])
-						params$Ydist["VarY","orig",input$iter,nn] 	<- as.numeric(Matrix::nearPD(Hxmat%*%params$Pk_prev[,,"orig",input$iter,nn]%*%t(Hxmat) + input$yt_var, ensureSymmetry=TRUE)$mat)
-        												
+							params$mk_prev[,1,"orig",input$iter,nn] <- f(xt=params$mk[,1,"orig",input$iter-1,nn], newV=params$vel_guess["orig",input$iter,nn]) 
+							params$Pk_prev[,,"orig",input$iter,nn] <- as.matrix(Matrix::nearPD(Fxmat%*%params$Pk[,,"orig",input$iter-1,nn]%*%t(Fxmat) + xt_var, ensureSymmetry=TRUE)$mat)
+							params$Ydist["MuY","orig",input$iter,nn] 	<- h(xt=params$mk_prev[,,"orig",input$iter,nn])
+							params$Ydist["VarY","orig",input$iter,nn] 	<- as.numeric(Matrix::nearPD(Hxmat%*%params$Pk_prev[,,"orig",input$iter,nn]%*%t(Hxmat) + input$yt_var, ensureSymmetry=TRUE)$mat)
+															
 						}
 					
                     }
@@ -231,10 +237,10 @@ server=shinyServer(function(input, output, session)
 					
 					#resample
 					#print(yt[input$iter+1,"true_loc"])
-					ynext <- yt[input$iter+1,"obs_loc"]
+					ynext <- yt[input$iter+1,"X"]
 					
 				    #params$wts[input$iter,] <- pmax(dnorm(x=yt[input$iter+1,"true_loc"], mean=params$Ydist["MuY","orig",input$iter,], sd=sqrt(params$Ydist["VarY","orig",input$iter,])), 1e-100)
-					params$wts[input$iter,] <- dnorm(x=yt[input$iter+1,"obs_loc"], mean=params$Ydist["MuY","orig",input$iter,], sd=sqrt(params$Ydist["VarY","orig",input$iter,]))
+					params$wts[input$iter,] <- dnorm(x=yt[input$iter+1,"X"], mean=params$Ydist["MuY","orig",input$iter,], sd=sqrt(params$Ydist["VarY","orig",input$iter,]))
 					
 					
 					#not sure why this happens
@@ -264,7 +270,7 @@ server=shinyServer(function(input, output, session)
 					
 						pred_loc(Ydist1=params$Ydist[,"orig",input$iter,], wts=params$wts[input$iter,,drop=FALSE], xlims=xrange, xticks=loc_axis, before_after="before", 
                               colors=params$resamp_colors["orig",input$iter,], npart=input$npart, sep_col=input$sep_col, 
-					          yt=yt[ input$iter:(input$iter+1),"obs_loc"], Yindex1=1:input$npart, indices=1:input$npart)
+					          yt=yt[ input$iter:(input$iter+1),"X"], Yindex1=1:input$npart, indices=1:input$npart)
 					
 						}
 					})
@@ -278,7 +284,7 @@ server=shinyServer(function(input, output, session)
 					#main problem: this is reacting too late because the locations are the same in both before/after plots
 				   		
 					if (params$is_new_step[ input$iter ] & input$iter >1) {
-                    ord <- params$indices[input$iter, ]
+						ord <- params$indices[input$iter, ]
 					
 						params$mk[,,"resamp",input$iter-1,] <- params$mk[,,"orig",input$iter-1, ord]
 						params$mk_prev[,,"resamp",input$iter,] <- params$mk_prev[,,"orig",input$iter, ord]
@@ -290,7 +296,7 @@ server=shinyServer(function(input, output, session)
 					
 					
 						params$xpart[,"resamp",input$iter-1,]	<- params$xpart[,"resamp_hist",input$iter-1,] <- params$xpart[,"orig",input$iter-1,ord]
-						if (input$iter >2 ) {
+						if (input$iter > 2) {
 						
 							params$xpart[,"resamp",1:(input$iter-2),] <- params$xpart[,"resamp",1:(input$iter-2), ord]
 						}
@@ -330,7 +336,7 @@ server=shinyServer(function(input, output, session)
 						
 								wts_counter <<- wts_counter +1
 								
-								if ( wts_counter >=1 & wts_counter< input$npart) { invalidateLater(millis=3000/input$npart) }
+								if ( wts_counter >=1 & wts_counter< input$npart) { invalidateLater(millis=render_delay_step) }
 								
 									m <- wt_dist_loop(wts=params$wts[input$iter,,drop=FALSE], xlims=xdens_range, ylims=ydens_range, known_mean=input$vel_mu, mu_guess=params$mu_guess["orig", input$iter,], 
 											npart=input$npart, colors=params$resamp_colors["orig",input$iter,], sep_col=input$sep_col, index=params$indices[ input$iter, wts_counter])
@@ -354,7 +360,7 @@ server=shinyServer(function(input, output, session)
 					m <- NULL		
 						
 					output$pred_loc_resamp <- renderPlot({
-						if (input$iter >0) {
+						if (input$iter > 0) {
 						# pred_loc(Ydist1=params$Ydist[,"resamp",input$iter,], wts=params$wts[input$iter, ,drop=FALSE], 
 						          # xlims=xrange, xticks=loc_axis, before_after="after", colors=params$resamp_colors["resamp",input$iter,], 
 								  # npart=input$npart, sep_col=input$sep_col, yt=yt[ input$iter:(input$iter+1),"true_loc"], Yindex1=1:input$npart,
@@ -365,14 +371,14 @@ server=shinyServer(function(input, output, session)
 							
 							if (params$is_new_step[ input$iter ]==FALSE & params$is_new_step[ input$iter+1 ]==TRUE) {
 								
-								locs_counter <<- locs_counter +1
+								locs_counter <<- locs_counter + 1
 								
-								if ( locs_counter >=1 & locs_counter< input$npart) { invalidateLater(millis=3000/input$npart) }
+								if ( locs_counter >= 1 & locs_counter < input$npart) { invalidateLater(millis=render_delay_step) }
 
 								
 									m <- pred_loc_loop(Ydist1=params$Ydist[,"resamp",input$iter,], wts=params$wts[input$iter, ,drop=FALSE], 
 													xlims=xrange, xticks=loc_axis, before_after="after", colors=params$resamp_colors["resamp",input$iter,], 
-													npart=input$npart, sep_col=input$sep_col, yt=yt[ input$iter:(input$iter+1),"obs_loc"], Yindex1=1:input$npart,
+													npart=input$npart, sep_col=input$sep_col, yt=yt[ input$iter:(input$iter+1),"X"], Yindex1=1:input$npart,
 													indices=params$indices[input$iter,], index=locs_counter)
 
 									m
@@ -381,7 +387,7 @@ server=shinyServer(function(input, output, session)
 							else {
 								pred_loc(Ydist1=params$Ydist[,"resamp",input$iter,], wts=params$wts[input$iter, ,drop=FALSE], 
 						           xlims=xrange, xticks=loc_axis, before_after="after", colors=params$resamp_colors["resamp",input$iter,], 
-								   npart=input$npart, sep_col=input$sep_col, yt=yt[ input$iter:(input$iter+1),"obs_loc"], Yindex1=1:input$npart,
+								   npart=input$npart, sep_col=input$sep_col, yt=yt[ input$iter:(input$iter+1),"X"], Yindex1=1:input$npart,
 								   indices=params$indices[input$iter,])	
 
 							}	
@@ -392,7 +398,7 @@ server=shinyServer(function(input, output, session)
 					}
 					
 	              			
-					if (params$is_new_step[ input$iter ] & input$iter >1) {
+					if (params$is_new_step[ input$iter ] & input$iter > 1) {
 					#update distributions
 						for (nn in 1:input$npart) {
 			
@@ -424,7 +430,7 @@ server=shinyServer(function(input, output, session)
 					}
 				
 					output$rugplot <- renderPlot({
-						if (input$iter >1) {
+						if (input$iter > 1) {
 					    convergence_rugplot(xlims=xdens_range, known_mean=input$vel_mu, max_iter=input$max_iter, iter=input$iter, 
 											mu_guess=params$mu_guess, npart=input$npart, colors=params$resamp_colors) 
 						}				
@@ -442,7 +448,7 @@ server=shinyServer(function(input, output, session)
 					
 						
 						location_history_v2(omega=omega_tmp, xticks=loc_axis, xlims=xrange, iter=input$iter, 
-											npart=input$npart, yt=yt[,"true_loc"], colors=params$resamp_colors["resamp",,])
+											npart=input$npart, yt=yt[,"X"], colors=params$resamp_colors["resamp",,])
 						}
 					})			    
 					

@@ -1,6 +1,8 @@
-interp_trajectory_joint <- function(d, nstates, one_d, dt_lnorm_mu=5, dt_lnorm_sd=1, dt_vals=NULL, centroids=centroids) {
+interp_trajectory_joint <- function(d, nstates, one_d, dt_lnorm_mu=5, dt_lnorm_sd=1, dt_vals=NULL, centroids=matrix(c(0,0), ncol=2)) {
 
 		ndim <- length(dim(d))
+		
+		speed_varname <- ifelse(one_d, "velocity", "speed")
 		
 		#multiple sharks
 		if (ndim==3) {
@@ -30,28 +32,32 @@ interp_trajectory_joint <- function(d, nstates, one_d, dt_lnorm_mu=5, dt_lnorm_s
 		#if interpolate to regular
 		
 		#if use fixed values
+		
+		adjust_dt_vec_to_span <- function(dtv, time_span) {
+
+			# extend if necessary to cover the time span		
+			dtv <- rep(dtv, ceiling(time_span/sum(dtv)))
+			
+			#trim if necessary
+			cs <- cumsum(dtv)
+			highest <- min(which(cs >= time_span))
+			dtv <- dtv[ 1:highest ]
+			
+			#if only one
+			len <- length(dtv)
+			if (len==1) {
+				dtv <- time_span
+			}
+			else {
+				dtv[ len ] <- time_span - sum(dtv[ 1:(len-1) ])
+			}
+			
+			dtv
+		}
 	
 		if (! is.null(dt_vals))  {
 
-			cs <- sum(dt_vals)
-			#if not enough
-			if (cs < time_span) {
-				dt_vals <- rep(dt_vals, ceiling(time_span/cs))
-			}
-			
-			#trim if necessary
-			cs <- cumsum(dt_vals)
-			highest <- min(which(cs >= time_span))
-			dt_vals <- dt_vals[ 1:highest ]
-			
-			#if only one
-			len <- length(dt_vals)
-			if (len==1) {
-				dt_vals <- time_span
-			}
-			else {
-				dt_vals[ len ] <- time_span - sum(dt_vals[ 1:(len-1) ])
-			}
+			dt_vals <- adjust_dt_vec_to_span(dtv=dt_vals, time_span=time_span)
 			
 			print("interpolating with given time gaps:")
 			print(dt_vals)
@@ -73,13 +79,17 @@ interp_trajectory_joint <- function(d, nstates, one_d, dt_lnorm_mu=5, dt_lnorm_s
 			emu <- round(exp_safe(dt_lnorm_mu), digits=5)
 			print(paste("interpolating with regular timestep approx", round(emu, digits=1)))
 			
+			t2next <- adjust_dt_vec_to_span(dtv=emu, time_span=time_span)
+			
 			#dont add 1 so doesn't go above right interval
 			t2next <- rep(emu, ceiling(time_span/emu ))
 			t_obs <- time_range[1] + cumsum(c(0,t2next))
-			t_obs <- t_obs[ -length(t_obs) ]
-			t2next <- rep(list(t2next), nsharks)
-			t_obs <- rep(list(t_obs), nsharks)
-			names(t2next) <- names(t_obs) <- shark_names					
+			t2next <- rep(list(c(dt_vals,5)), nsharks)
+			names(t2next) <- names(t_obs) <- shark_names
+			#t_obs <- t_obs[ -length(t_obs) ]
+			#t2next <- rep(list(t2next), nsharks)
+			#t_obs <- rep(list(t_obs), nsharks)
+			#names(t2next) <- names(t_obs) <- shark_names					
 			
 		}
 		else {
@@ -146,7 +156,10 @@ interp_trajectory_joint <- function(d, nstates, one_d, dt_lnorm_mu=5, dt_lnorm_s
 			di[shark_tags==s , "next.guess2"][ st < max(st) ] <- as.numeric(d[next_obs_ind, "state.guess2", s])  
 			#di[shark_tags==s, "state.guess2"] <- as.numeric(d[ di[shark_tags==s,"t_intervals"], "state.guess2", s])
 			
-			di[shark_tags==s, c("angle_velocity", "logvelocity")] <- as.matrix(d[ di[shark_tags==s, "t_intervals"], c("angle_velocity", "logvelocity"), s])
+			if (one_d) { sv <- c("velocity") }
+			else { sv <- c("speed", "log_speed") }
+			
+			di[shark_tags==s, sv] <- as.matrix(d[ di[shark_tags==s, "t_intervals"], sv, s])
 				
 			t_intervals <- unique(di[ shark_tags==s, "t_intervals" ])
 			t_intervals <- t_intervals[ ! is.na(t_intervals) ]
@@ -163,11 +176,11 @@ interp_trajectory_joint <- function(d, nstates, one_d, dt_lnorm_mu=5, dt_lnorm_s
 				j <- as.vector((di[isteps,"date_as_sec"] - d[tt,"date_as_sec", s])/diff(d[c(tt,tt+1), "date_as_sec", s]))
 				
 				if (one_d) {
-					change <- matrix(d[tt, "angle_velocity", s]*d[tt, "time_to_next", s], ncol=1, nrow=length(isteps))
+					change <- matrix(d[tt, "velocity", s]*d[tt, "time_to_next", s], ncol=1, nrow=length(isteps))
 					colnames(change) <- "X"
 				}
 				else {
-					change <- matrix(d[tt, "angle_velocity", s]*d[tt, "time_to_next", s]*c(cos(d[tt, "bearing.to.east.tonext.rad", s]), sin(d[tt, "bearing.to.east.tonext.rad", s])), ncol=2, nrow=length(isteps), byrow=TRUE)
+					change <- matrix(d[tt, "speed", s]*d[tt, "time_to_next", s]*c(cos(d[tt, "bearing.to.east.tonext.rad", s]), sin(d[tt, "bearing.to.east.tonext.rad", s])), ncol=2, nrow=length(isteps), byrow=TRUE)
 					colnames(change) <- c("X","Y")
 				}
 				
@@ -208,25 +221,25 @@ interp_trajectory_joint <- function(d, nstates, one_d, dt_lnorm_mu=5, dt_lnorm_s
 			#di <- di[ -nrow(di),]
 			
 			if (one_d ==FALSE) {
+				# d_to_next will be Euclidean distance, which must be positive
 				d_to_next <- as.numeric(apply(di[ shark_tags==s,c("dx_to_next","dy_to_next")], 1, function(x) sqrt(sum(x^2))))
 			}
 			else {
-				d_to_next <- as.numeric(c(diff(di[shark_tags==s,"X"]), prod(di[which(shark_tags==s)[ shark_nobs_di[ s ]], c("time_to_next","angle_velocity")])))
+				# d_to_next will be the difference in positions, which can be positive or negative
+				d_to_next <- as.numeric(c(diff(di[shark_tags==s,"X"]), prod(di[which(shark_tags==s)[ shark_nobs_di[ s ]], c("time_to_next","velocity")])))
 				di[ shark_tags==s,"region"] <- 1
 			}
 						
 			#print(di[,"time_to_next"])
-			di[shark_tags==s, "angle_velocity"] <- d_to_next/di[shark_tags==s, "time_to_next"]
+			di[shark_tags==s, speed_varname] <- d_to_next/di[shark_tags==s, "time_to_next"]
 			
 			
 			
 			#di[ st[ -length(st) ] , "next.guess2"] <- di[ st[ -1 ], "state.guess2"]
 			
-			if (one_d) { 
-				di[shark_tags==s, "logvelocity"] <- di[shark_tags==s,"angle_velocity"] 
-			}
-			else { 
-				di[shark_tags==s, "logvelocity"] <- log_safe(di[shark_tags==s, "angle_velocity"]) 
+
+			if (one_d == FALSE) { 
+				di[shark_tags==s, "logvelocity"] <- log_safe(di[shark_tags==s, "speed"]) 
 			
 				#turn angles use atan2
 				di[,"bearing.to.east.tonext.rad"] <- atan2(y=di[,"dy_to_next"], x=di[,"dx_to_next"])
@@ -242,10 +255,7 @@ interp_trajectory_joint <- function(d, nstates, one_d, dt_lnorm_mu=5, dt_lnorm_s
 		
 			
 			#if want to get rid of interpolation points 
-			
-			
-			
-					
+				
 			
 		}#loop over sharks
 				
@@ -263,11 +273,11 @@ interp_trajectory_joint <- function(d, nstates, one_d, dt_lnorm_mu=5, dt_lnorm_s
 }		
 
 
-sim_trajectory_joint <- function(area_map, centroids, 
+sim_trajectory_joint <- function(area_map, centroids=matrix(c(0,0), ncol=2), 
                            transition_matrices=list(matrix(c(10,3,2,9), ncol=2, byrow=TRUE)),
                            mu0_pars=list(alpha=c(-4 ,-1.6), beta=c(0,0)), var0_pars=list(alpha=c(1.6,0.16), beta=c(2,.5)), 
-						   N=100, nstates=2, reg_dt=NULL, gen_irreg=TRUE, one_d=FALSE, dt_lnorm_mu=log(120), dt_lnorm_sd=1,
-						   starting_polygon=area_map, nsharks=1, interact=FALSE, 
+						   N=100, nstates=2, reg_dt=120, gen_irreg=TRUE, one_d=FALSE, dt_lnorm_mu=log(120), dt_lnorm_sd=1,
+						   dt_vals=NULL, starting_polygon=area_map, nsharks=1, interact=FALSE, 
 						   interact_pars=list(interacting_sharks=c(1:nsharks), time_radius=60*30, spat_radius=200, min_num_neibs=10,
 						   eta_mu=c(2,1), rho_sd=c(0.75, 0.75)), time_dep_trans=FALSE, trans_alpha=c(1, 1.5)) {
 
@@ -281,7 +291,6 @@ sim_trajectory_joint <- function(area_map, centroids,
 	if (nstates==1 & ! is.null(transition_matrices)) { 
 	   print("Only simulating with one behavioral state")
 	}
-
 
 
 	normalize_angle <- function(theta) {
@@ -309,23 +318,37 @@ sim_trajectory_joint <- function(area_map, centroids,
 	if (one_d) { 
 		nregions <- 1
 		loc_variables <- c("X")
-		#interact <- FALSE
+		
+		speed_varname <- "velocity"
+		
 	}	
 	else {
 		nregions <- nrow(centroids)
 		loc_variables <- c("X","Y")
 		
+		speed_varname <- "log_speed"
+				
 					
 		if (length(centroids) == 0) {
 			nregions <- 1
 		}
 	}
 	
-    if (nstates >1) {
+    if (nstates > 1) {
 		
 		if (! is.list(transition_matrices)) {
 			transition_matrices <- list(transition_matrices)
 		}
+		
+		tmat_rows <- sapply(transition_matrices, nrow)
+		tmat_cols <- sapply(transition_matrices, ncol)
+		
+		if ((! all(tmat_rows == nstates)) | (! all(tmat_rows == nstates))) {
+			print(transition_matrices)
+			stop(paste("If simulating with nstates == ", nstates, ", all transition matrices must be of that dimension square"))
+		
+		}
+		
 		if (one_d) {
 			transition_matrices <- list(transition_matrices[[ 1 ]])
 		}	
@@ -350,13 +373,6 @@ sim_trajectory_joint <- function(area_map, centroids,
 		trans_alpha <- matrix(trans_alpha, ncol=nstates, nrow=nregions, byrow=TRUE)
 	}
 	
-	
-	#default value  
-	if (gen_irreg & is.null(reg_dt)) { reg_dt <- 120 }
-
-	if (is.null(reg_dt)) { 
-		interact <- FALSE
-	}
 	
 	if (interact) {
 		#sharks that dont interact with others, but influence interacting sharks
@@ -390,9 +406,9 @@ sim_trajectory_joint <- function(area_map, centroids,
 	}
     
 	if (one_d) {
-		d <- array(NA, dim=c(N+1, 12, nsharks),
+		d <- array(NA, dim=c(N+1, 11, nsharks),
 					dimnames=list(1:(N+1),
-								  c("X","logvelocity","angle_velocity","date_as_sec","state.guess2","lambda","next.guess2","time_to_next","dx_to_next","t_intervals","region","time_in_state"),
+								  c("X","velocity","date_as_sec","state.guess2","lambda","next.guess2","time_to_next","dx_to_next","t_intervals","region","time_in_state"),
 								  shark_names))
 									
     }
@@ -400,7 +416,7 @@ sim_trajectory_joint <- function(area_map, centroids,
 		
 		d <- array(NA, dim=c(N+1, 16, nsharks),
 					dimnames=list(1:(N+1),
-								  c("X","Y","logvelocity","date_as_sec","angle_velocity","turn.angle.rad","bearing.to.east.tonext.rad","state.guess2","lambda","next.guess2","time_to_next","region","dx_to_next","dy_to_next","t_intervals","time_in_state"),
+								  c("X","Y","log_speed","date_as_sec","speed","turn.angle.rad","bearing.to.east.tonext.rad","state.guess2","lambda","next.guess2","time_to_next","region","dx_to_next","dy_to_next","t_intervals","time_in_state"),
 									shark_names))
 	
     }
@@ -525,11 +541,12 @@ sim_trajectory_joint <- function(area_map, centroids,
 						
 			while (inside ==FALSE) { 
 			
-				d[tt,"logvelocity", s] <- rnorm(n=1, mean=mu0_pars$alpha[ z ], sd=sqrt(var0_pars$alpha[ z ]))
-				if (one_d) { d[tt,"angle_velocity", s] <- d[tt,"logvelocity", s] }
-				else { d[tt,"angle_velocity", s] <- exp_safe(d[tt,"logvelocity", s]) }
+				d[tt,speed_varname, s] <- rnorm(n=1, mean=mu0_pars$alpha[ z ], sd=sqrt(var0_pars$alpha[ z ]))
 				
 				if (one_d==FALSE) {	
+					
+					d[tt,"speed", s] <- exp_safe(d[tt,speed_varname, s])
+				
 					if (tt>1) {
 						
 						#d[tt,"turn.angle.rad", s] <- normalize_angle(CircStats::rvm(n=1, mean=turn_pars$mu0[ z ], k=turn_pars$kappa0[ z ])) 
@@ -539,7 +556,7 @@ sim_trajectory_joint <- function(area_map, centroids,
 					}
 								
 					#new coordinate
-					d[tt+1, c("X","Y"), s] <- d[tt, c("X","Y"), s] + d[tt, "angle_velocity", s]*d[tt, "time_to_next", s]*c(cos(d[tt, "bearing.to.east.tonext.rad", s]), sin(d[tt, "bearing.to.east.tonext.rad", s]))
+					d[tt+1, c("X","Y"), s] <- d[tt, c("X","Y"), s] + d[tt, "speed", s]*d[tt, "time_to_next", s]*c(cos(d[tt, "bearing.to.east.tonext.rad", s]), sin(d[tt, "bearing.to.east.tonext.rad", s]))
 						
 					new_traj <- sp::SpatialLines(list(sp::Lines(sp::Line(d[tt:(tt+1), c("X","Y"), s]), ID=1)))
 					inside <- rgeos::gContains(area_map, new_traj)
@@ -548,7 +565,7 @@ sim_trajectory_joint <- function(area_map, centroids,
 				}
 				else {
 					inside <- TRUE
-					d[tt+1,"X", s] <- d[tt,"X", s] + d[tt,"angle_velocity", s]*d[tt, "time_to_next", s]
+					d[tt+1,"X", s] <- d[tt,"X", s] + d[tt,"velocity", s]*d[tt, "time_to_next", s]
 					#d[tt,"dx_to_next"] <- d[tt+1,"X"] - d[tt,"X"]
 				}
 			}
@@ -565,7 +582,7 @@ sim_trajectory_joint <- function(area_map, centroids,
 	
 	if (gen_irreg) {
 
-		di <- interp_trajectory_joint(d=d, nstates=nstates, one_d=one_d, 
+		di <- interp_trajectory_joint(d=d, nstates=nstates, one_d=one_d, dt_vals=dt_vals,
 								dt_lnorm_mu=dt_lnorm_mu, dt_lnorm_sd=dt_lnorm_sd, centroids=centroids)
 	
 	}#create irregular
@@ -574,7 +591,7 @@ sim_trajectory_joint <- function(area_map, centroids,
 	d[ -nrow(d), "dx_to_next",] <- d[-1, "X",] - d[-nrow(d), "X",]
 	
 	
-	if (one_d ==FALSE) {
+	if (one_d == FALSE) {
 		d[-nrow(d), "dy_to_next",] <- d[-1, "Y",] - d[-nrow(d), "Y",]
 	}
 	

@@ -90,7 +90,8 @@ sharks_with_obs_interact_EKF_1d_interp_joint <- function(env_obj) {
 				#interact_mu_draw <- cbind(rnorm(n=env_obj$npart, mean=spatial_interact_pars[,"mu1",s], sd=1/sqrt(spatial_interact_pars[,"precision1",s])),
 				#						  rnorm(n=env_obj$npart, mean=spatial_interact_pars[,"mu2",s], sd=1/sqrt(spatial_interact_pars[,"precision2",s])))
 
-				interact_mu_draw <- matrix(rnorm(n=env_obj$npart*(env_obj$nstates - 1), mean=env_obj$spatial_interact_pars[,env_obj$mu_names,s], sd=1/sqrt(env_obj$spatial_interact_pars[,env_obj$prec_names,s])), ncol=env_obj$nstates - 1, byrow=TRUE)
+				interact_mu_draw <- keep_finite(matrix(rnorm(n=env_obj$npart*(env_obj$nstates - 1), mean=env_obj$spatial_interact_pars[,env_obj$mu_names,s], 
+															 sd=1/sqrt(env_obj$spatial_interact_pars[,env_obj$prec_names,s])), ncol=env_obj$nstates - 1, byrow=TRUE))
 																	
 				#print(env_obj$num_neibs[ env_obj$part_with_neibs[,s],,s, drop=FALSE])													
 				#print(t(apply(env_obj$num_neibs[ env_obj$part_with_neibs[,s],,s, drop=FALSE], 1, function(x) x/sum(x))))
@@ -101,8 +102,8 @@ sharks_with_obs_interact_EKF_1d_interp_joint <- function(env_obj) {
 			
 				for (k in 1:(env_obj$nstates-1)) {
 					
-					env_obj$interact_intensity_draw[env_obj$part_with_neibs[,s], k, env_obj$i, s ] <- rlnorm(n=num_part_with_neibs, meanlog=interact_mu_draw[ env_obj$part_with_neibs[,s] ,k]*env_obj$neib_fracs[ env_obj$part_with_neibs[,s], k, env_obj$i,s],
-																											 sdlog=env_obj$interact_pars$known_sd[k])
+					env_obj$interact_intensity_draw[env_obj$part_with_neibs[,s], k, env_obj$i, s ] <- keep_finite(rlnorm(n=num_part_with_neibs, meanlog=interact_mu_draw[ env_obj$part_with_neibs[,s] ,k]*env_obj$neib_fracs[ env_obj$part_with_neibs[,s], k, env_obj$i,s],
+																											 sdlog=env_obj$interact_pars$known_sd[k]))
 											
 				}
 						

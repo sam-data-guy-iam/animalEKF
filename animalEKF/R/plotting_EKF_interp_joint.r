@@ -4,9 +4,18 @@ plotting_EKF_interp_joint <- function(env_obj) {
 	lgd <- format(Sys.time(), "%Y_%m_%d_%H_%M_%S") 
 	
 	
-	if (env_obj$output_plot) {	
+	if (env_obj$output_plot) {
+		# make sure filename comes out valid
+		default_prefix = "EKF_2D"
+		if (is.null(env_obj$pdf_prefix) | env_obj$pdf_prefix =="") {
+			env_obj$pdf_prefix = default_prefix
+		}
+		else if (! (substr(env_obj$pdf_prefix, 1, 1) %in% c(letters, LETTERS))) {
+			env_obj$pdf_prefix = paste("EKF", env_obj$pdf_prefix, sep="_")
+		}	
+		
 		print("printing pdf")
-		grDevices::pdf(paste(env_obj$output_dir,"/EKFdiag",lgd,".pdf", sep=""))
+		grDevices::pdf(paste(env_obj$output_dir, "/", env_obj$pdf_prefix, "_", lgd, ".pdf", sep=""))
 	}
 	
 	half <- ceiling(env_obj$N/2)
@@ -81,10 +90,11 @@ plotting_EKF_interp_joint <- function(env_obj) {
 		
 		a <- env_obj$d[ env_obj$tags==s & env_obj$d[,"time_to_next"] < env_obj$reg_dt * env_obj$max_int_wo_obs & ! is.na(env_obj$d[,"time_to_next"]),"time_to_next"]
 		
-		if (length(a) >0) {
+		if (length(a) > 1) {
 			
-			hist(x=a, main=paste("Distribution of observed time steps, shark",s), xlab="Seconds")
-			abline(v=c(env_obj$reg_dt, median(env_obj$d[,"time_to_next"], na.rm=TRUE), mean(env_obj$d[,"time_to_next"], na.rm=TRUE)), lwd=2, lty=1:3, col="red")
+			dm <- density_min2(x=a, m1=min(a), m2=max(a))
+			plot(dm, ylim=c(0, max(dm$y)*1.1), main=paste("Distribution of observed time steps, shark ",s, " (N=", length(a), ")", sep=""), xlab="Seconds", las=1)
+			abline(v=c(env_obj$reg_dt, median(a), mean(a)), lwd=2, lty=1:3, col="red")
 			legend("topright", legend=c("reg dt","median(obs dt)","mean(obs dt)"), lwd=2, lty=1:3, col="red")
 		}
 	
@@ -275,7 +285,6 @@ plotting_EKF_interp_joint <- function(env_obj) {
 	
 
 	
-	par(mfrow=c(2,1))
 	
 	if (env_obj$nstates > 1) {
 		
@@ -298,14 +307,24 @@ plotting_EKF_interp_joint <- function(env_obj) {
 	}		
 	
 	# resample history
+	par(mfrow=c(2,1))
 
 	matplot(env_obj$resample_history, type="b", col=1:env_obj$nsharks, xlim=c(1,env_obj$N), ylim=c(0,1), main="Fraction of particles resampled at each step", xlab="Step", ylab="Fraction", pch=19, cex=0.7, las=1)
-	legend("bottomleft", lty=1, col=1:env_obj$nsharks, legend=env_obj$shark_names, cex=0.5)
+	legend("bottomleft", lty=1, col=1:env_obj$nsharks, legend=env_obj$shark_names, cex=0.5, pch=19, pt.cex=0.7)
 	
 	
-	matplot(env_obj$eff_size_hist/env_obj$npart, type="b", col=1:env_obj$nsharks, xlim=c(1,env_obj$N), ylim=c(0,1), main="Effective sample size / #particles", xlab="Step", ylab="Fraction", pch=19, cex=0.7, las=1)
-	legend("bottomleft", lty=1, col=1:env_obj$nsharks, legend=env_obj$shark_names, cex=0.5)
+	# effective size
+	plot(x=-5, y=-5, xlim=c(1,env_obj$N), ylim=c(0,1), main="Effective sample size / #particles", xlab="Step", ylab="Fraction", las=1)
 	abline(h=env_obj$neff_sample, lty=3)
+	pch_mat <- matrix(1, ncol=env_obj$nsharks, nrow=env_obj$N)
+	pch_mat[ env_obj$eff_size_hist <= env_obj$neff_sample * env_obj$npart ] <- 19
+	pch_mat[ is.na(env_obj$eff_size_hist) ] <- NA
+	colnames(pch_mat) <- env_obj$shark_names
+	
+	for (ss in 1:env_obj$nsharks) {
+		points(x=1:env_obj$N, y=env_obj$eff_size_hist[,ss] / env_obj$npart, pch=pch_mat[,ss], type="b", cex=0.7, col=ss)
+	}
+	legend("bottomleft", lty=1, col=1:env_obj$nsharks, legend=env_obj$shark_names, cex=0.5, pch=19, pt.cex=0.7)
 		
 		
 	
@@ -316,6 +335,9 @@ plotting_EKF_interp_joint <- function(env_obj) {
 	env_obj$error_final_allpart <- array(NA, dim=c(env_obj$N, env_obj$npart, env_obj$nsharks), dimnames=list(env_obj$Nnames, env_obj$pnames, env_obj$shark_names))
 		
 	legend_quantiles <- function() legend("topleft", legend=c("Q90","Q50","Q10"), lty=3:1, cex=0.7, col=3:1, pch=1)
+
+	pretty_axis <- pretty(x=1:env_obj$N, n=6)
+	pretty_axis_intervals <- function() axis(side=1, at=pretty_axis, labels=pretty_axis)
 
 
 	for (s in env_obj$shark_names) {
@@ -331,7 +353,7 @@ plotting_EKF_interp_joint <- function(env_obj) {
 				
 				#error from predictions
 				env_obj$error_final_allpart[i,,s] <- env_obj$error_final_allpart[i,,s] + 
-					as.vector(dist_func(center=obs[jj,], otherXY=t(apply(env_obj$Xpart_history[ i, c("X","Y","logv","bearing_rad"),,s], 2, function(x) env_obj$h(mk=x, dtprev=env_obj$j_list[[ s ]][[ i ]][ jj ] * env_obj$reg_dt)))))
+					as.vector(dist_func(center=obs[jj,], otherXY=t(apply(env_obj$Xpart_history[ i, c("X","Y","log_speed","bearing_rad"),,s], 2, function(x) env_obj$h(mk=x, dtprev=env_obj$j_list[[ s ]][[ i ]][ jj ] * env_obj$reg_dt)))))
 				
 			}			
 			
@@ -343,7 +365,7 @@ plotting_EKF_interp_joint <- function(env_obj) {
 				
 				#error from predictions
 				env_obj$error_smoothed_allpart[i,,s] <- env_obj$error_smoothed_allpart[i,,s] + 
-					as.vector(dist_func(center=obs[jj,], otherXY=t(apply(env_obj$Xpart_history_smoothed[ i, c("X","Y","logv","bearing_rad"),,s], 2, function(x) env_obj$h(mk=x, dtprev=env_obj$j_list[[ s ]][[ i ]][ jj ] * env_obj$reg_dt)))))
+					as.vector(dist_func(center=obs[jj,], otherXY=t(apply(env_obj$Xpart_history_smoothed[ i, c("X","Y","log_speed","bearing_rad"),,s], 2, function(x) env_obj$h(mk=x, dtprev=env_obj$j_list[[ s ]][[ i ]][ jj ] * env_obj$reg_dt)))))
 				
 				}			
 			
@@ -360,15 +382,27 @@ plotting_EKF_interp_joint <- function(env_obj) {
 		yrange[1] <- min(yrange[1],0)
 		
 		
-		matplot(env_obj$error_beforesamp_quantiles[,,s], type="b", lty=1:3, main=paste("Distance from observed (filtered before resampling), shark",s), ylab="distance", xlab="timestep", ylim=yrange, cex=0.5, pch=1, las=1)
-		legend_quantiles()
+		boxplot(t(env_obj$error_beforesamp_allpart[,,s]), xaxt="n", las=1, main=paste("Distance from observed (filtered before resampling), shark",s),
+			ylab="distance", xlab="timestep", ylim=yrange, outline=FALSE, staplewex=0.2, boxfill="white", medlwd=2)
+		pretty_axis_intervals()
+		# matplot(env_obj$error_beforesamp_quantiles[,,s], type="b", lty=1:3, main=paste("Distance from observed (filtered before resampling), shark",s), ylab="distance", xlab="timestep", ylim=yrange, cex=0.5, pch=1, las=1)
+		# legend_quantiles()
 		
-		matplot(env_obj$error_final_quantiles[,,s], type="b", lty=1:3, main=paste("Distance from observed (final filtered), shark",s), ylab="distance", xlab="timestep", ylim=yrange, cex=0.5, pch=1, las=1)
-		legend_quantiles()
+		boxplot(t(env_obj$error_final_allpart[,,s]), xaxt="n", las=1, main=paste("Distance from observed (final filtered), shark",s),
+			ylab="distance", xlab="timestep", ylim=yrange, outline=FALSE, staplewex=0.2, boxfill="white", medlwd=2)
+		pretty_axis_intervals()
+		
+		# matplot(env_obj$error_final_quantiles[,,s], type="b", lty=1:3, main=paste("Distance from observed (final filtered), shark",s), ylab="distance", xlab="timestep", ylim=yrange, cex=0.5, pch=1, las=1)
+		# legend_quantiles()
 		
 		if (env_obj$smoothing) {
-			matplot(env_obj$error_smoothed_quantiles[,,s], type="b", lty=1:3, main=paste("Distance from observed (smoothed), shark",s), ylab="distance", xlab="timestep", ylim=yrange, cex=0.5, pch=1, las=1)
-			legend_quantiles()
+		
+			boxplot(t(env_obj$error_smoothed_quantiles[,,s]), xaxt="n", las=1, main=paste("Distance from observed (smoothed)), shark",s),
+				ylab="distance", xlab="timestep", ylim=yrange, outline=FALSE, staplewex=0.2,
+				boxcol=2, whiskcol=2, outcol=2, medcol=2, staplecol=2, boxfill="white", medlwd=2)
+			pretty_axis_intervals()
+			#matplot(env_obj$error_smoothed_quantiles[,,s], type="b", lty=1:3, main=paste("Distance from observed (smoothed), shark",s), ylab="distance", xlab="timestep", ylim=yrange, cex=0.5, pch=1, las=1)
+			# legend_quantiles()
 		}
 	
 		
@@ -469,16 +503,29 @@ plotting_EKF_interp_joint <- function(env_obj) {
 			yrange <- range(tmp, na.rm=TRUE)
 			yrange[1] <- min(yrange[1],0)
 			
-			matplot(env_obj$error_final_true_quantiles[,,s], type="b", lty=1:3, main=paste("Distance from TRUE (final filtered), shark",s), ylab="distance", xlab="timestep", ylim=yrange, cex=0.5, pch=1, las=1)
-			legend_quantiles()
+			
+			boxplot(t(env_obj$error_final_true_quantiles[,,s]), xaxt="n", las=1, main=paste("Distance from TRUE (final filtered), shark",s),
+				ylab="distance", xlab="timestep", ylim=yrange, outline=FALSE, staplewex=0.2, boxfill="white", medlwd=2)
+			pretty_axis_intervals()
+			
+			#matplot(env_obj$error_final_true_quantiles[,,s], type="b", lty=1:3, main=paste("Distance from TRUE (final filtered), shark",s), ylab="distance", xlab="timestep", ylim=yrange, cex=0.5, pch=1, las=1)
+			# legend_quantiles()
 		
 			if (env_obj$smoothing) {
-				matplot(env_obj$error_smoothed_true_quantiles[,,s], type="b", lty=1:3, main=paste("Distance from TRUE (smoothed), shark",s), ylab="distance", xlab="timestep", ylim=yrange, cex=0.5, pch=1, las=1)
-				legend_quantiles()
+			
+				boxplot(t(env_obj$error_smoothed_true_quantiles[,,s]), xaxt="n", las=1, main=paste("Distance from TRUE (smoothed), shark",s),
+					ylab="distance", xlab="timestep", ylim=yrange, outline=FALSE, staplewex=0.2,
+					boxcol=2, whiskcol=2, outcol=2, medcol=2, staplecol=2, boxfill="white", medlwd=2)
+				pretty_axis_intervals()
+			
+				#matplot(env_obj$error_smoothed_true_quantiles[,,s], type="b", lty=1:3, main=paste("Distance from TRUE (smoothed), shark",s), ylab="distance", xlab="timestep", ylim=yrange, cex=0.5, pch=1, las=1)
+				#legend_quantiles()
 			}
 		
 			matplot(env_obj$error_euclidean_estimate_true_from_obs[,,s], type="b", ylab="distance", xlab="timestep", ylim=yrange, cex=0.5, pch=1, col=1:2, lty=1:2, las=1,
-				main=paste("Distance from TRUE (estimated from observed), shark", s))
+				main=paste("Distance from TRUE (estimated from observed), shark", s), xaxt="n")
+			pretty_axis_intervals()
+			
 			legend("topleft", col=1:2, lty=1:2, cex=0.7, pch=1, legend=c("Euclidean", "Bezier spline"))
 
 		
@@ -638,7 +685,7 @@ plotting_EKF_interp_joint <- function(env_obj) {
 	
 	stab_N <- array("", dim=c(env_obj$nsharks, 4, env_obj$nstates), dimnames=list(env_obj$shark_names, c("part.","obs.","smooth.","true"), 1:env_obj$nstates))	
 		
-	logv_obs_densities <- lapply(env_obj$shark_names, function(ss) lapply(1:env_obj$nstates, function(k) density_min2(x=env_obj$d[ env_obj$d$tag==ss & env_obj$d$state.guess2==k,"logvelocity"])))
+	logv_obs_densities <- lapply(env_obj$shark_names, function(ss) lapply(1:env_obj$nstates, function(k) density_min2(x=env_obj$d[ env_obj$d$tag==ss & env_obj$d$state.guess2==k,"log_speed"])))
 	turn_obs_densities <- lapply(env_obj$shark_names, function(ss) lapply(1:env_obj$nstates, function(k) density_min2(x=env_obj$d[ env_obj$d$tag==ss & env_obj$d$state.guess2==k,"turn.angle.rad"], m1=-pi, m2=pi)))
 	names(logv_obs_densities) <- names(turn_obs_densities) <- env_obj$shark_names
 	
@@ -678,7 +725,7 @@ plotting_EKF_interp_joint <- function(env_obj) {
 		
 	
 	if (env_obj$compare_with_known) {
-		logv_true_densities <- lapply(env_obj$shark_names, function(ss) lapply(1:env_obj$nstates, function(k) density_min2(x=env_obj$known_regular_step_ds[ env_obj$known_regular_step_ds$tag==ss & env_obj$known_regular_step_ds$state.guess2==k,"logvelocity"])))
+		logv_true_densities <- lapply(env_obj$shark_names, function(ss) lapply(1:env_obj$nstates, function(k) density_min2(x=env_obj$known_regular_step_ds[ env_obj$known_regular_step_ds$tag==ss & env_obj$known_regular_step_ds$state.guess2==k,"log_speed"])))
 		turn_true_densities <- lapply(env_obj$shark_names, function(ss) lapply(1:env_obj$nstates, function(k) density_min2(x=env_obj$known_regular_step_ds[ env_obj$known_regular_step_ds$tag==ss & env_obj$known_regular_step_ds$state.guess2==k,"turn.angle.rad"], m1=-pi, m2=pi)))
 		names(logv_true_densities) <- names(turn_true_densities) <- env_obj$shark_names
 		
@@ -704,7 +751,8 @@ plotting_EKF_interp_joint <- function(env_obj) {
 	}	
 
 	
-	xlim_logv <- c(min(xlim_logv[,1], na.rm=TRUE), max(xlim_logv[,2], na.rm=TRUE))
+	xlim_logv <- c(max(min(xlim_logv[,1], na.rm=TRUE), env_obj$logvelocity_truncate[1]),
+				   min(max(xlim_logv[,2], na.rm=TRUE), env_obj$logvelocity_truncate[2]))
 
 	
 	legend_col <- rep(1:env_obj$nstates, each=length(legend_labels))
@@ -1640,13 +1688,21 @@ plotting_EKF_interp_joint <- function(env_obj) {
 		text(env_obj$centroids[,1], env_obj$centroids[,2], labels=1:nrow(env_obj$centroids))
 
 
+		# extract these so we have the same xlimits in ggplot
+		ggxlim <- par()$usr[1:2]
+		ggylim <- par()$usr[3:4]
+
 		#density plot
 		particle_locs <- do.call(rbind, lapply(1:env_obj$npart, function(pp) env_obj$Xpart_history[,c("X","Y"),pp,s]))
 		particle_locs <- na.omit(as.data.frame(particle_locs))
 		rownames(particle_locs) <- NULL
 
 		
-		g <- ggplot(particle_locs, aes(x=X, y=Y)) + theme_bw() + coord_fixed() + lims(x=r1, y=r2)
+		#g <- ggplot(particle_locs, aes(x=X, y=Y)) + coord_fixed(ratio=1, xlim=ggxlim, ylim=ggylim) + theme(axis.text.x = element_text(size=14), axis.text.y = element_text(size=14))
+		#g <- g + theme_bw() + theme(panel.background = element_rect(fill="white"))		
+		
+		g <- ggplot(particle_locs, aes(x=X, y=Y)) + theme_bw() + theme(aspect.ratio=1, axis.text.x = element_text(size=14), axis.text.y = element_text(size=14))
+		g <- g + theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank())
 		g <- g + ggtitle(paste("All particle positions density (red=observed locs.), shark",s))
 		g <- g + stat_density2d(aes(fill=..density..), geom="tile", contour=FALSE)
 		g <- g + scale_fill_gradient(low="white", high="black", na.value="white") + theme(legend.position="right")
@@ -1667,9 +1723,13 @@ plotting_EKF_interp_joint <- function(env_obj) {
 			if (env_obj$nregions > 1 ) { plot.deldir(vortess, wlines="tess", cex=0, add=TRUE) }
 			text(env_obj$centroids[,1], env_obj$centroids[,2], labels=1:nrow(env_obj$centroids))
 		
+			ggxlim <- par()$usr[1:2]
+			ggylim <- par()$usr[3:4]
 		
-			
-			g <- ggplot(particle_locs, aes(x=X, y=Y)) + theme_bw() + coord_fixed() + lims(x=r1, y=r2)
+			g <- ggplot(particle_locs, aes(x=X, y=Y)) + theme_bw() + theme(aspect.ratio=1, axis.text.x = element_text(size=14), axis.text.y = element_text(size=14))
+
+			#g <- ggplot(particle_locs, aes(x=X, y=Y)) + coord_fixed(ratio=1, xlim=ggxlim, ylim=ggylim) + theme(axis.text.x = element_text(size=14), axis.text.y = element_text(size=14))
+			g <- g + theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank())
 			g <- g + ggtitle(paste("All particle positions density (red=TRUE locs.), shark",s))
 			g <- g + stat_density2d(aes(fill=..density..), geom="tile", contour=FALSE)
 			g <- g + scale_fill_gradient(low="white", high="black", na.value="white") + theme(legend.position="right")
@@ -1700,9 +1760,13 @@ plotting_EKF_interp_joint <- function(env_obj) {
 			if (env_obj$nregions > 1 ) { plot.deldir(vortess, wlines="tess", cex=0, add=TRUE) }
 			text(env_obj$centroids[,1], env_obj$centroids[,2], labels=1:nrow(env_obj$centroids))	
 		
+			ggxlim <- par()$usr[1:2]
+			ggylim <- par()$usr[3:4]
 		
-		
-			g <- ggplot(particle_locs_smoothed, aes(x=X, y=Y)) + theme_bw() + coord_fixed() + lims(x=r1, y=r2)
+			g <- ggplot(particle_locs_smoothed, aes(x=X, y=Y)) + theme_bw() + theme(aspect.ratio=1, axis.text.x = element_text(size=14), axis.text.y = element_text(size=14))
+
+			#g <- ggplot(particle_locs_smoothed, aes(x=X, y=Y)) + coord_fixed(ratio=1, xlim=ggxlim, ylim=ggylim) + theme(axis.text.x = element_text(size=14), axis.text.y = element_text(size=14))
+			g <- g + theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank())
 			g <- g + ggtitle(paste("All particle positions density (smoothed, red=observed locs.), shark",s))
 			g <- g + stat_density2d(aes(fill=..density..), geom="tile", contour=FALSE)
 			g <- g + scale_fill_gradient(low="white", high="black", na.value="white") + theme(legend.position="right")
@@ -1721,8 +1785,15 @@ plotting_EKF_interp_joint <- function(env_obj) {
 				if (env_obj$nregions > 1 ) { plot.deldir(vortess, wlines="tess", cex=0, add=TRUE) }
 				text(env_obj$centroids[,1], env_obj$centroids[,2], labels=1:nrow(env_obj$centroids))
 			
+				ggxlim <- par()$usr[1:2]
+				ggylim <- par()$usr[3:4]
 			
-				g <- ggplot(particle_locs_smoothed, aes(x=X, y=Y)) + theme_bw() + coord_fixed() + lims(x=r1, y=r2)
+
+				#g <- ggplot(particle_locs_smoothed, aes(x=X, y=Y)) + coord_fixed(ratio=1, xlim=ggxlim, ylim=ggylim) + theme(axis.text.x = element_text(size=14), axis.text.y = element_text(size=14))
+				#g <- g + theme_bw() + theme(panel.background = element_rect(fill="white"))
+				g <- ggplot(particle_locs_smoothed, aes(x=X, y=Y)) + theme_bw() + theme(aspect.ratio=1, axis.text.x = element_text(size=14), axis.text.y = element_text(size=14))
+				g <- g + theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank())
+
 				g <- g + ggtitle(paste("All particle positions density (smoothed, red=TRUE locs.), shark",s))
 				g <- g + stat_density2d(aes(fill=..density..), geom="tile", contour=FALSE)
 				g <- g + scale_fill_gradient(low="white", high="black", na.value="white") + theme(legend.position="right")
@@ -1736,28 +1807,7 @@ plotting_EKF_interp_joint <- function(env_obj) {
 		
 		}
 		
-		
 
-		# par(mfcol=c(1,ifelse(env_obj$smoothing,3,2)))
-		# if (length(xobs[ ! is.na(xobs) ]) > 1) {
-		
-			# image(MASS::kde2d(xobs[ ! is.na(xobs) ], yobs[ ! is.na(yobs) ], lims=c(env_obj$obs_XY_bbox[,"X"], env_obj$obs_XY_bbox[,"Y"])), main=paste("Observed points, shark", s))
-			# sp::plot(env_obj$area_map, border="green", lwd=2, add=TRUE, axes=TRUE)
-		# }
-		
-		# if (length(xall[ ! is.na(xall) ]) > 1) {
-		
-			# image(MASS::kde2d(xall[ ! is.na(xall) ], yall[ ! is.na(yall) ], lims=c(env_obj$obs_XY_bbox[,"X"], env_obj$obs_XY_bbox[,"Y"])), main="All simulated points")
-			# plot(env_obj$area_map, border="green", lwd=2, add=TRUE, axes=TRUE)
-		# }
-		# if (env_obj$smoothing) {
-			# if (length(xall_smoothed[ ! is.na(xall_smoothed) ]) > 1) {
-		
-				# image(MASS::kde2d(xall_smoothed[ ! is.na(xall_smoothed) ], yall_smoothed[ ! is.na(yall_smoothed) ], lims=c(env_obj$obs_XY_bbox[,"X"], env_obj$obs_XY_bbox[,"Y"])), main="All simulated points (smoothed)")
-				# sp::plot(env_obj$area_map, border="green", lwd=2, add=TRUE, axes=TRUE)
-			# }
-		# }
-		
 
 	}#loop over sharks	
 

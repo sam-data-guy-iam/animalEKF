@@ -18,7 +18,7 @@ sharks_with_obs_sim_EKF_1d_interp_joint <- function(env_obj) {
 				
 		for (k in 1:env_obj$nstates) {
 
-		  env_obj$sigma_draw[,k,s] <- pmax(1e-15, MCMCpack::rinvgamma(n=env_obj$npart, shape=env_obj$sigma_pars[, 2*k-1, s], scale=env_obj$sigma_pars[, 2*k, s]))
+		  env_obj$sigma_draw[,k,s] <- keep_finite(pmax(1e-15, MCMCpack::rinvgamma(n=env_obj$npart, shape=env_obj$sigma_pars[, 2*k-1, s], scale=env_obj$sigma_pars[, 2*k, s])))
 			
 		}
 
@@ -29,7 +29,7 @@ sharks_with_obs_sim_EKF_1d_interp_joint <- function(env_obj) {
 	  
 			#particle covariance, one for each state. only second part depends on state though
 			
-			env_obj$Qt[1, 1,, p,s] <- MCMCpack::riwish(v=env_obj$Particle_errvar[[ s ]][[ p ]]$dof, S=env_obj$Particle_errvar[[ s ]][[ p ]]$sig)
+			env_obj$Qt[1, 1,, p,s] <- keep_finite(MCMCpack::riwish(v=env_obj$Particle_errvar[[ s ]][[ p ]]$dof, S=env_obj$Particle_errvar[[ s ]][[ p ]]$sig))
 			  
 			#draw values for mu_alpha, mu_beta
 			#here beta is the mean of the log-transformed angle, which we have to change to 
@@ -54,6 +54,7 @@ sharks_with_obs_sim_EKF_1d_interp_joint <- function(env_obj) {
 			}
 		}#loop over part and k	
 		
+		env_obj$XY_errvar_draw[,,,, s] <- keep_finite(env_obj$XY_errvar_draw[,,,, s])
 			
 		#multiply by gradient since later will be variance of theta
 		
@@ -65,23 +66,20 @@ sharks_with_obs_sim_EKF_1d_interp_joint <- function(env_obj) {
 		
 			for (p in 1:env_obj$npart) {
 			
-				env_obj$mk_prev[,k,p,s] <- env_obj$f(mk=env_obj$mk_actual[,p,s], new_logv=env_obj$logv_angle_mu_draw[p,"logv",k,s], dtprev=env_obj$reg_dt) #a_{t+1}
-				Fx_tmp <- env_obj$Fx(mk=env_obj$mk_actual[,p,s], dtprev=env_obj$reg_dt)
-				env_obj$Pk_prev[,,k,p,s] <- as.matrix(Matrix::nearPD(Fx_tmp %*% env_obj$Pk_actual[,,p,s] %*% t(Fx_tmp) + env_obj$Qt[,,k,p,s], ensureSymmetry=TRUE)$mat) #R_{t+1}
+				env_obj$mk_prev[,k,p,s] <- keep_finite(env_obj$f(mk=env_obj$mk_actual[,p,s], new_logv=env_obj$logv_angle_mu_draw[p,"velocity",k,s], dtprev=env_obj$reg_dt)) #a_{t+1}
+				Fx_tmp <- keep_finite(env_obj$Fx(mk=env_obj$mk_actual[,p,s], dtprev=env_obj$reg_dt))
+				env_obj$Pk_prev[,,k,p,s] <- keep_finite(as.matrix(Matrix::nearPD(keep_finite(keep_finite(keep_finite(Fx_tmp %*% env_obj$Pk_actual[,,p,s]) %*% t(Fx_tmp)) + env_obj$Qt[,,k,p,s]), ensureSymmetry=TRUE)$mat)) #R_{t+1}
 
 			}
 				
-		 
-			#Xpart[,"X",k,"next_t",s]  <- t(apply(Xpart[,,k,"curr",s], 1, function(x) h(mk=x, dtprev=reg_dt)))
-			#difference in x-y coordinates
-			#Xpart[,"X",k,"d",s] <- Xpart[,"X",k,"next_t",s] - Xpart[,"X",k,"curr",s]
-			
-		
+		 		
 		}
 		
 		
 		#interpolation fraction	for each shark
-		env_obj$j_list[[ s ]][[ env_obj$i ]] <- pmax((env_obj$ynext[rownames(env_obj$ynext) == s,"date_as_sec"] - env_obj$t_reg[env_obj$i]) / env_obj$reg_dt, 1e-10)
+		
+		shark_rows <- rownames(env_obj$ynext) == s
+		env_obj$j_list[[ s ]][[ env_obj$i ]] <- pmax((env_obj$ynext[shark_rows, "date_as_sec"] - env_obj$t_reg[env_obj$i]) / env_obj$reg_dt, 1e-10)
 		
 					
 		print(paste("j:", paste(round(env_obj$j_list[[ s ]][[ env_obj$i ]], digits=4), collapse=", ")))
@@ -104,33 +102,29 @@ sharks_with_obs_sim_EKF_1d_interp_joint <- function(env_obj) {
 		j_tmp <- diff(c(0, env_obj$j_list[[ s ]][[ env_obj$i ]]))
 		
 		
-		for (p in 1:env_obj$npart) {
-			
+		for (p in 1:env_obj$npart) {			
 			for (k in 1:env_obj$nstates) {
+			
+				mk_tmp <- c(env_obj$mk_prev[,k,p,s])
+				Pk_tmp <- env_obj$Pk_prev[,,k,p,s]
+
 				for (y in 1:env_obj$yobs_sharks[ s ]) {
 					
-					if (y==1) {
+					if (y > 1) {
+						#take previous x values and starting logv
+						#mk_tmp[1] <- env_obj$MuY[[ s ]][y-1,k,p]
+						
+						#take previous x-y values and starting logv and bearing
+						mk_tmp[1] <- env_obj$MuY[[ s ]][y-1,k,p]
+						Pk_tmp[1,1] <- env_obj$SigY[[ s ]][y-1,k,p]
+					}
 					
 						
-						env_obj$MuY[[ s ]][y,k,p] <- env_obj$h(mk=env_obj$mk_prev[,k,p,s], dtprev=j_tmp[ y ] * env_obj$reg_dt)
-						Hx_tmp <- env_obj$Hx(mk=env_obj$mk_prev[,k,p,s], dtprev=j_tmp[ y ] * env_obj$reg_dt)
-						#print(MuY[[ s ]][y,k,p])
-					}
-					else {
+					env_obj$MuY[[ s ]][y,k,p] <- keep_finite(env_obj$h(mk=mk_tmp, dtprev=j_tmp[ y ] * env_obj$reg_dt))
+					Hx_tmp <- keep_finite(env_obj$Hx(mk=env_obj$mk_prev[,k,p,s], dtprev=j_tmp[ y ] * env_obj$reg_dt))
 					
-						#take previous x-y vaulues and starting logv
-						
-						mk_tmp <- c(env_obj$MuY[[ s ]][y-1,k,p], env_obj$mk_prev[2, k, p, s])
-														
-						env_obj$MuY[[ s ]][y,k,p] <- env_obj$h(mk=mk_tmp, dtprev=j_tmp[ y ] * env_obj$reg_dt)
-						#print(MuY[[ s ]][y,k,p])
-						Hx_tmp <- env_obj$Hx(mk=mk_tmp, dtprev=j_tmp[ y ] * env_obj$reg_dt)
-					
-					}
-
-					#Pk_prev_interp[[ s ]][,,y,k,p] <- as.matrix(Matrix::nearPD(Fx_tmp%*%Pk_actual[,,p,s]%*%t(Fx_tmp) + (j_tmp[ y ])*Qt[,,k,p], ensureSymmetry=TRUE)$mat) #R_{t+1}
-					
-					env_obj$SigY[[ s ]][y,k,p] <- keep_finite(as.matrix(Matrix::nearPD(Hx_tmp %*% env_obj$Pk_prev[,,k,p,s] %*% t(Hx_tmp)  + (j_tmp[ y ]) * env_obj$XY_errvar_draw[,,k,p,s], ensureSymmetry=TRUE)$mat))
+					# env_obj$SigY[[ s ]][y,k,p] <- keep_finite(as.matrix(Matrix::nearPD(keep_finite(Hx_tmp %*% env_obj$Pk_prev[,,k,p,s] %*% t(Hx_tmp)  + (j_tmp[ y ] * env_obj$XY_errvar_draw[,,k,p,s])), ensureSymmetry=TRUE)$mat))
+					env_obj$SigY[[ s ]][y,k,p] <- keep_finite(as.matrix(Matrix::nearPD(keep_finite(keep_finite(keep_finite(Hx_tmp %*% Pk_tmp) %*% t(Hx_tmp))  + (j_tmp[ y ] * env_obj$XY_errvar_draw[,,k,p,s])), ensureSymmetry=TRUE)$mat))
 				
 					
 					

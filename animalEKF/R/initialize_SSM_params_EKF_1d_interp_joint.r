@@ -69,12 +69,15 @@ initialize_SSM_params_EKF_1d_interp_joint <- function(env_obj) {
 
 
 	P00 <- diag(2)
-	env_obj$Pk_actual <- array(0, dim=c(2, 2, env_obj$npart, env_obj$nsharks), dimnames=list(c("X","logv"), c("X","logv"), env_obj$pnames, env_obj$shark_names))
-	env_obj$Pk_prev <- env_obj$Pk <- array(0, dim=c(2, 2, env_obj$nstates, env_obj$npart, env_obj$nsharks), dimnames=list(c("X","logv"), c("X","logv"), env_obj$state_names, env_obj$pnames, env_obj$shark_names))
+	env_obj$Pk_actual <- array(0, dim=c(2, 2, env_obj$npart, env_obj$nsharks), dimnames=list(c("X","velocity"), c("X","velocity"), env_obj$pnames, env_obj$shark_names))
+	env_obj$Pk_prev <- env_obj$Pk <- array(0, dim=c(2, 2, env_obj$nstates, env_obj$npart, env_obj$nsharks), dimnames=list(c("X","velocity"), c("X","velocity"), env_obj$state_names, env_obj$pnames, env_obj$shark_names))
 	
-	env_obj$mk_actual <- array(0, dim=c(2, env_obj$npart, env_obj$nsharks), dimnames=list(c("X","logv"), env_obj$pnames, env_obj$shark_names))						  
-	env_obj$mk_prev <- array(NA, dim=c(2, env_obj$nstates, env_obj$npart, env_obj$nsharks), dimnames=list(c("X","logv"), env_obj$state_names, env_obj$pnames, env_obj$shark_names))
+	env_obj$mk_actual <- array(0, dim=c(2, env_obj$npart, env_obj$nsharks), dimnames=list(c("X","velocity"), env_obj$pnames, env_obj$shark_names))						  
+	env_obj$mk_prev <- array(NA, dim=c(2, env_obj$nstates, env_obj$npart, env_obj$nsharks), dimnames=list(c("X","velocity"), env_obj$state_names, env_obj$pnames, env_obj$shark_names))
 					
+	#history of mean vectors to use in calculating particle error (especially with delayed resampling)					
+	env_obj$mk_actual_history <- array(NA, dim=c(env_obj$N, 2, env_obj$npart, env_obj$nsharks),
+									   dimnames= list(env_obj$Nnames, c("X","velocity"), env_obj$pnames, env_obj$shark_names))
 
 	env_obj$param_sampling_weights <- rep(1, env_obj$npart) 
 
@@ -89,12 +92,15 @@ initialize_SSM_params_EKF_1d_interp_joint <- function(env_obj) {
 				env_obj$Pk_prev[1,1,k,p,s] <- MCMCpack::riwish(v=env_obj$Particle_errvar[[ s ]][[ p ]]$dof, S=env_obj$Particle_errvar[[ s ]][[ p ]]$sig)
 				env_obj$Pk_prev[2,2,k,p,s] <- MCMCpack::rinvgamma(n=1, env_obj$sigma_pars[ 2*k -1 ], env_obj$sigma_pars[ 2*k ])
 				env_obj$mk_prev[2,k,p,s] <- rnorm(n=1, mean=env_obj$alpha0_pars$mu0[ k ], sd=sqrt(env_obj$alpha0_pars$V0[ k ]*env_obj$Pk_prev[2,2,k,p,s]))
+			
 			}
 	#	mk_actual[,p,s] <- mk_prev[,z0,p,s] 
 	#	Pk_actual[,,p,s] <- Pk_prev[,, z0,p,s]
 		}	
 	}
-
+	
+	env_obj$Pk_prev <- keep_finite(env_obj$Pk_prev)
+	env_obj$mk_prev <- keep_finite(env_obj$mk_prev)
 
 
 	#Pk_prev_interp <- rep(list(NA), nsharks)
@@ -103,7 +109,7 @@ initialize_SSM_params_EKF_1d_interp_joint <- function(env_obj) {
 	env_obj$mk <- env_obj$mk_prev
 	env_obj$Pk <- env_obj$Pk_prev
 
-	env_obj$Qt <- array(diag(2), dim=c(2, 2, env_obj$nstates, env_obj$npart, env_obj$nsharks), dimnames=list(c("X","logv"), c("X","logv"), env_obj$state_names, env_obj$pnames, env_obj$shark_names) )
+	env_obj$Qt <- array(diag(2), dim=c(2, 2, env_obj$nstates, env_obj$npart, env_obj$nsharks), dimnames=list(c("X","velocity"), c("X","velocity"), env_obj$state_names, env_obj$pnames, env_obj$shark_names) )
 
 	#variances of logV
 
@@ -131,7 +137,7 @@ initialize_SSM_params_EKF_1d_interp_joint <- function(env_obj) {
 
 
 
-	env_obj$logv_angle_mu_draw <- array(NA, dim=c(env_obj$npart, 1, env_obj$nstates, env_obj$nsharks), dimnames=list(env_obj$pnames, "logv", env_obj$state_names, env_obj$shark_names))
+	env_obj$logv_angle_mu_draw <- array(NA, dim=c(env_obj$npart, 1, env_obj$nstates, env_obj$nsharks), dimnames=list(env_obj$pnames, "velocity", env_obj$state_names, env_obj$shark_names))
 	#logv_angle_draw <- logv_angle_mu_draw
 
 

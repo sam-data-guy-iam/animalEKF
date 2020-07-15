@@ -3,14 +3,11 @@ sharks_with_obs_update_params_EKF_interp_joint <- function(env_obj) {
 	#new position differences 
 	
 	
-	#times[12] <- Sys.time()
-	total_error_xt_to_yt <- matrix(0, ncol=length(env_obj$sharks_with_obs), nrow=env_obj$npart)
-	colnames(total_error_xt_to_yt) <- env_obj$sharks_with_obs
 	
 	for (s in env_obj$sharks_with_obs) {
 							
 	
-		env_obj$pred_xt_loc[,,s] <- apply(t(env_obj$Xpart_history[env_obj$i, c("X","Y","logv","bearing_rad"),,s]), 1, function(x) env_obj$h(mk=x, dtprev=env_obj$reg_dt))
+		env_obj$pred_xt_loc[,,s] <- keep_finite(apply(t(env_obj$Xpart_history[env_obj$i, c("X","Y","log_speed","bearing_rad"),,s]), 1, function(x) env_obj$h(mk=x, dtprev=env_obj$reg_dt)))
 			
 					
 				
@@ -34,9 +31,9 @@ sharks_with_obs_update_params_EKF_interp_joint <- function(env_obj) {
 		#dof_increase_xy <- length(j_list[[ s ]][[ i ]])
 		
 		#dof should depend on the gaps
-		dof_increase_xy <- max(env_obj$j_list[[ s ]][[ env_obj$i ]])
+		dof_increase_xy <- sum(env_obj$j_list[[ s ]][[ env_obj$i ]]) #max(env_obj$j_list[[ s ]][[ env_obj$i ]]) #
 		dof_increase_part <- length(steps_tmp_diff)
-	
+
 						
 		for (p in 1:env_obj$npart) {
 
@@ -45,10 +42,10 @@ sharks_with_obs_update_params_EKF_interp_joint <- function(env_obj) {
 			
 			#newV <- matrix(apply(env_obj$Xpart_history[env_obj$steps_to_resamp[[ s ]], c("logv","turn_log","lambda"),p,s, drop=FALSE], MARGIN=2, FUN=rbind), ncol=3)
 
-			newV <- matrix(env_obj$Xpart_history[steps_tmp, c("logv","turn_rad","lambda"),p,s], ncol=3)
+			newV <- matrix(env_obj$Xpart_history[steps_tmp, c("log_speed","turn_rad","lambda"),p,s], ncol=3)
 			
 			
-			colnames(newV) <- c("logv","turn_rad","lambda")
+			colnames(newV) <- c("log_speed","turn_rad","lambda")
 			#newV <- na.omit(newV)
 			newV_num <- table(factor(newV[,"lambda", drop=FALSE], levels=1:env_obj$nstates))
 			#print(cbind(newV, turn_rad=log2rad(newV[,"turn_log"])))
@@ -57,7 +54,7 @@ sharks_with_obs_update_params_EKF_interp_joint <- function(env_obj) {
 			
 				nn <- newV_num[ z ]
 				zmembs <- newV[,"lambda", drop=FALSE] == z
-				newV_bar <- apply(newV[ zmembs, c("logv","turn_rad"), drop=FALSE], 2, function(x) mean(x, na.rm=TRUE)) 
+				newV_bar <- apply(newV[ zmembs, c("log_speed","turn_rad"), drop=FALSE], 2, function(x) mean(x, na.rm=TRUE)) 
 				#if no turn (if first observation, then dont update parameters just for that)
 			
 				not_na <- which(! is.na(newV_bar))
@@ -83,19 +80,19 @@ sharks_with_obs_update_params_EKF_interp_joint <- function(env_obj) {
 					theta_vals <- sapply(obs_turn, function(ff) ff + env_obj$wn_seq) #matrix with npart columns
 					#in case there are gaps?
 					#print("theta")
-					p#rint(theta_vals)
+					#print(theta_vals)
 					
 					#theta_vals <- t(apply(newV[zmembs,"turn_rad",drop=FALSE], 1, function(x) x + env_obj$wn_seq))
 					#theta_vals <- theta_vals[ apply(theta_vals, 1, function(x) all(! is.na(x))),,drop=FALSE]
 					#print("wts")
-					beta_weights <- dnorm(theta_vals, mean=env_obj$logv_angle_mu_draw[p,"turn",z,s], sd=sqrt(env_obj$tau_draw[p,z,s]))
+					beta_weights <- keep_finite(dnorm(theta_vals, mean=env_obj$logv_angle_mu_draw[p,"turn",z,s], sd=sqrt(env_obj$tau_draw[p,z,s])))
 					#print(beta_weights)
 					beta_weights <- apply(beta_weights, 2, function(x) x/sum(x))
 					#print(beta_weights)
 								
 													
-					wtd_x <- colSums(theta_vals * beta_weights)
-					wtd_x2 <- colSums((theta_vals^2) * beta_weights)
+					wtd_x <- colSums(keep_finite(theta_vals * beta_weights))
+					wtd_x2 <- keep_finite(colSums(keep_finite(keep_finite(theta_vals^2) * beta_weights)))
 					wtd_mu <- mean(wtd_x)
 					
 					
@@ -106,7 +103,7 @@ sharks_with_obs_update_params_EKF_interp_joint <- function(env_obj) {
 				}	
 				
 				
-				env_obj$sigma_pars[ p, 2*z, s]  <- pmin(env_obj$sigma_pars[ p, 2*z, s] + 0.5*((mu0[ 1 ]^2)/V0[ 1 ] + sum(newV[zmembs, "logv", drop=FALSE ]^2, na.rm=TRUE) - (env_obj$mu[z,"alpha","mu",p,s]^2) / env_obj$mu[z,"alpha","V",p,s]), 500 * (env_obj$sigma_pars[ p, 2*z - 1, s] - 1)/ env_obj$mu[z,"alpha","V",p,s])
+				env_obj$sigma_pars[ p, 2*z, s]  <- pmin(env_obj$sigma_pars[ p, 2*z, s] + 0.5*((mu0[ 1 ]^2)/V0[ 1 ] + sum(newV[zmembs, "log_speed", drop=FALSE ]^2, na.rm=TRUE) - (env_obj$mu[z,"alpha","mu",p,s]^2) / env_obj$mu[z,"alpha","V",p,s]), 500 * (env_obj$sigma_pars[ p, 2*z - 1, s] - 1)/ env_obj$mu[z,"alpha","V",p,s])
 
 				
 					
@@ -120,17 +117,17 @@ sharks_with_obs_update_params_EKF_interp_joint <- function(env_obj) {
 			
 			#error is error from X prediction to Y
 			
-			error_xt_to_yt <- env_obj$ynext[ rownames(env_obj$ynext)==s,c("X","Y"), drop=FALSE] - t(env_obj$MuY[[ s ]][,,z,p])
-			total_error_xt_to_yt[p,s] <- sum(apply(error_xt_to_yt^2, 1, function(x) sqrt(sum(x))))
+			error_xt_to_yt <- keep_finite(env_obj$ynext[ rownames(env_obj$ynext)==s,c("X","Y"), drop=FALSE] - t(env_obj$MuY[[ s ]][,,z,p]))
+			env_obj$error_beforesamp_allpart[ env_obj$i,p,s] <- keep_finite(sum(keep_finite(apply(keep_finite(error_xt_to_yt^2), 1, function(x) sqrt(sum(x))))))
 							
 								
 			
 			
 			#depends on the state
-			env_obj$SSquare_XY[,,z,p,s] <- env_obj$SSquare_XY[,,z,p,s] + t(error_xt_to_yt)%*%error_xt_to_yt
+			env_obj$SSquare_XY[,,z,p,s] <- keep_finite(env_obj$SSquare_XY[,,z,p,s] + keep_finite(t(error_xt_to_yt)%*%error_xt_to_yt))
 			
 									
-			env_obj$XY_errvar[[ s ]][[ p ]][[ z ]]$sig <- as.matrix(Matrix::nearPD(env_obj$Errvar0[[ z ]] + env_obj$SSquare_XY[,,z,p,s], ensureSymmetry=TRUE)$mat)
+			env_obj$XY_errvar[[ s ]][[ p ]][[ z ]]$sig <- keep_finite(as.matrix(Matrix::nearPD(keep_finite(env_obj$Errvar0[[ z ]] + env_obj$SSquare_XY[,,z,p,s]), ensureSymmetry=TRUE)$mat))
 			env_obj$XY_errvar[[ s ]][[ p ]][[ z ]]$dof <- env_obj$XY_errvar[[ s ]][[ p ]][[ z ]]$dof + dof_increase_xy #dt[ i ]/cov_adjustment[ i ]#1
 			
 			#regardless of state
@@ -138,16 +135,18 @@ sharks_with_obs_update_params_EKF_interp_joint <- function(env_obj) {
 			
 			
 			
-			pred_xt_loc_steps <- apply(env_obj$Xpart_history[ steps_tmp_diff, c("X","Y","logv","bearing_rad"),p,s, drop=FALSE], 1, function(x) env_obj$h(mk=x, dtprev=env_obj$reg_dt))
+			#pred_xt_loc_steps <- keep_finite(apply(env_obj$Xpart_history[ steps_tmp_diff, c("X","Y","log_speed","bearing_rad"),p,s, drop=FALSE], 1, function(x) env_obj$h(mk=x, dtprev=env_obj$reg_dt)))
 				
-			error_xtprev_to_xt <- matrix(env_obj$Xpart_history[ steps_tmp_diff + 1, c("X","Y"),p,s] - pred_xt_loc_steps, ncol=2) 
+			#error_xtprev_to_xt <- keep_finite(matrix(env_obj$Xpart_history[ steps_tmp_diff + 1, c("X","Y"),p,s] - pred_xt_loc_steps, ncol=2)) 
+			error_xtprev_to_xt <- keep_finite(matrix(env_obj$mk_actual_history[ steps_tmp, c("X","Y"),p,s] - env_obj$Xpart_history[ steps_tmp, c("X","Y"),p,s], ncol=2)) 
 			
-			env_obj$SSquare_particle[,,p,s] <- env_obj$SSquare_particle[,,p,s] + t(error_xtprev_to_xt) %*% error_xtprev_to_xt    #Dp2[p,]%*%t(Dp2[p,])
+			
+			env_obj$SSquare_particle[,,p,s] <- keep_finite(env_obj$SSquare_particle[,,p,s] + keep_finite(t(error_xtprev_to_xt) %*% error_xtprev_to_xt))    #Dp2[p,]%*%t(Dp2[p,])
 			#smat <- Particle_errvar0 + SSquare_particle[,,p,s]
 			
 			##if (any(abs(smat) ==Inf) | any(is.na(s))) { print(smat) ; print(error_xtprev_to_xt[p, ,s]) }
 									
-			env_obj$Particle_errvar[[ s ]][[ p ]]$sig <- as.matrix(Matrix::nearPD(env_obj$Particle_errvar0 + env_obj$SSquare_particle[,,p,s], ensureSymmetry=TRUE)$mat)
+			env_obj$Particle_errvar[[ s ]][[ p ]]$sig <- keep_finite(as.matrix(Matrix::nearPD(keep_finite(env_obj$Particle_errvar0 + env_obj$SSquare_particle[,,p,s]), ensureSymmetry=TRUE)$mat))
 			env_obj$Particle_errvar[[ s ]][[ p ]]$dof <- env_obj$Particle_errvar[[ s ]][[ p ]]$dof + dof_increase_part #dt[ i ]/cov_adjustment[ i ]#1
 		
 			# env_obj$Xpart_history[i+1,c("X","Y"),p,s] <- reject_sampling(mu=h(mk=env_obj$Xpart_history[i,c("X","Y","logv","bearing_rad"),p,s], dtprev=reg_dt), 
@@ -167,9 +166,10 @@ sharks_with_obs_update_params_EKF_interp_joint <- function(env_obj) {
 	
 						
 		env_obj$Xpart_history[steps_tmp, c("bearing_rad","turn_rad"),,s] <- normalize_angle(env_obj$Xpart_history[steps_tmp, c("bearing_rad","turn_rad"),,s])
-		env_obj$error_beforesamp_quantiles[env_obj$i,,s] <- quantile(total_error_xt_to_yt[,s], p=c(.1, .5, .9))
 
-	
+		env_obj$error_beforesamp_quantiles[ env_obj$i,,s] <-  quantile(env_obj$error_beforesamp_allpart[ env_obj$i,,s], p=c(.1, .5, .9))
+		
+			
 		#update inverse gamma parameters
 		
 		state_by_seq <- t(apply(env_obj$lambda_matrix[,steps_tmp,s, drop=FALSE],1, function(x) table(factor(x, levels=1:env_obj$nstates))))

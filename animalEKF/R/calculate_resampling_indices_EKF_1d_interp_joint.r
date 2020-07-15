@@ -54,8 +54,10 @@ calculate_resampling_indices_EKF_1d_interp_joint <- function(env_obj) {
 					env_obj$densities_components[[ s ]][[ k ]][,"interact"] <- env_obj$interact_intensity_draw[,k,env_obj$i,s]
 				}
 				
-			}			
-		
+			}
+
+					
+			env_obj$densities_components[[ s ]][[ k ]] <- keep_finite(env_obj$densities_components[[ s ]][[ k ]])
 		}	
 
 	}#end calculating components by shark and 		
@@ -91,8 +93,8 @@ calculate_resampling_indices_EKF_1d_interp_joint <- function(env_obj) {
 	if (all(rs==0)) { rs <- rep(1, env_obj$npart) }
 	#print(densities_components[ sharks_with_obs ])
 
-		  
-	eff_size <- eff_ss(p=rowSums(env_obj$densities))
+	 
+	eff_size <- eff_ss(p=rowSums(pmax(env_obj$densities, 1e-15, na.rm=TRUE)))	 
 	env_obj$eff_size_hist[env_obj$i, s] <- eff_size
 
 	#if don't fall below effective size threshold, only resample shakrs with final obs
@@ -112,10 +114,10 @@ calculate_resampling_indices_EKF_1d_interp_joint <- function(env_obj) {
 
 	if (nsharks_resample > 0) {
 
-		print("resampling")
-		#indices <- rep(0,npart)
-		#sample separately by shark
-								
+		print("resampling...")
+		if (env_obj$nsharks > 1) {
+			print(env_obj$sharks_to_resample)
+		}
 		iter <- 0
 		#resample particles with weights (sum of densities across rows) for next particles
 	   

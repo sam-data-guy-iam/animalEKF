@@ -119,7 +119,7 @@ server=shinyServer(function(input, output, session)
 		nsharks <- length(shark_names)
 		
 		shark_col <- rep(NA, max(shark_names))
-        shark_col[ shark_names ] <- colorspace::rainbow_hcl(n=nsharks, l=50)
+        shark_col[ shark_names ] <- colorspace::rainbow_hcl(n=nsharks+1, l=50, c=100)[1:nsharks]
 		
 			
 		

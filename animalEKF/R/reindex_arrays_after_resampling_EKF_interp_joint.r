@@ -1,13 +1,13 @@
 reindex_arrays_after_resampling_EKF_interp_joint <- function(env_obj) {
 
-	#print(head(env_obj$indices))
-	
-	for (s in env_obj$sharks_with_obs) {
+	for (s in env_obj$sharks_to_resample) {
+
 		
 		#Xpart[,,,"curr",s] <- Xpart[env_obj$indices[,s] ,,,"curr",s, drop=FALSE]
 		env_obj$mk[,,,s] <- env_obj$mk[,, env_obj$indices[,s], s , drop=FALSE]
 		env_obj$mk_prev[,,,s] <- env_obj$mk_prev[ ,,env_obj$indices[,s], s , drop=FALSE]
 		env_obj$mk_actual[,,s] <- env_obj$mk_actual[ ,env_obj$indices[,s], s, drop=FALSE]
+		
 		env_obj$densities <- env_obj$densities[ env_obj$indices[,s], , drop=FALSE]
 				
 		#Pk_prev_interp[[ s ]] <- Pk_prev_interp[[ s ]][,,,, env_obj$indices[,s] , drop=FALSE]
@@ -44,7 +44,9 @@ reindex_arrays_after_resampling_EKF_interp_joint <- function(env_obj) {
 		#resample since last resampled
 		if (env_obj$resamp_full_hist) { i_tmp <- 1:(env_obj$i - 1) }
 		else { i_tmp <- env_obj$steps_to_resamp[[ s ]] }
-
+		
+		env_obj$mk_actual_history[i_tmp,,,s] <- env_obj$mk_actual_history[i_tmp, ,env_obj$indices[,s], s, drop=FALSE]
+		
 		env_obj$cov_err_hist[,,,i_tmp,s,"resamp"] <- env_obj$cov_err_hist[,,env_obj$indices[,s],i_tmp,s,"orig"]
 		
 		env_obj$lambda_matrix_beforesamp[,env_obj$steps_to_resamp[[ s ]],s] <- env_obj$lambda_matrix[,env_obj$steps_to_resamp[[ s ]],s]

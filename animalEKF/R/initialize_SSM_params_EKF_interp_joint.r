@@ -2,8 +2,8 @@ initialize_SSM_params_EKF_interp_joint <- function(env_obj) {
 
 		
 	env_obj$f <- function(mk, new_logv, theta, dtprev) {
+						# mk = X,Y, logv, bearing
 						mk <- as.vector(as.numeric(mk))
-						mk[4] <- normalize_angle(mk[4])
 					
 						es <- exp_safe(mk[3]) * dtprev
 						mk_new <- cbind(es, es, new_logv, normalize_angle(mk[4]+theta))
@@ -117,7 +117,12 @@ initialize_SSM_params_EKF_interp_joint <- function(env_obj) {
 	
 	env_obj$mk_actual <- array(0, dim=c(4,env_obj$npart, env_obj$nsharks), dimnames=list(c("X","Y","logv","bearing_rad"),env_obj$pnames, env_obj$shark_names))
 	env_obj$mk_prev <- array(NA, dim=c(4, env_obj$nstates, env_obj$npart, env_obj$nsharks), dimnames=list(c("X","Y","logv","bearing_rad"), env_obj$state_names, env_obj$pnames, env_obj$shark_names))
-									
+						
+	#history of mean vectors to use in calculating particle error (especially with delayed resampling)					
+	env_obj$mk_actual_history <- array(NA, dim=c(env_obj$N, 4, env_obj$npart, env_obj$nsharks),
+									   dimnames= list(env_obj$Nnames, c("X","Y","logv","bearing_rad"), env_obj$pnames, env_obj$shark_names))
+
+						
 	env_obj$Qt <- array(diag(4), dim=c(4,4,env_obj$nstates,env_obj$npart,env_obj$nsharks), dimnames=list(c("X","Y","logv","bearing_rad"),c("X","Y","logv","bearing_rad"), env_obj$state_names, env_obj$pnames, env_obj$shark_names) )
 
 
@@ -138,19 +143,12 @@ initialize_SSM_params_EKF_interp_joint <- function(env_obj) {
 			
 			}
 			
-			
-			#Pk_prev[4,4,k,,s] <- Pk_prev[4,4,k,,s]*(grad_ginv(mu0_pars$beta[ k ]))^2
-			
-				
-			
 		}
 		
-		
-		
-	#	mk_actual[,p,s] <- mk_prev[,z0,p,s] 
-	#	Pk_actual[,,p,s] <- Pk_prev[,, z0,p,s]
-		
 	}
+	
+	env_obj$Pk_prev <- keep_finite(env_obj$Pk_prev)
+	env_obj$mk_prev <- keep_finite(env_obj$mk_prev)
 
 	#initialize values so have correct dimensions
 	env_obj$mk <- env_obj$mk_prev
