@@ -34,17 +34,12 @@ A numeric vector of length \code{M}.
 James Edward Baker. Reducing bias and inefficiency in the selection algorithm. Proceedings of the Second International Conference on Genetic Algorithms on Genetic Algorithms and Their Application, 1987.
 }
 \author{
-%%  ~~who you are~~
+Samuel Ackerman
 }
-\note{
-%%  ~~further notes~~
-}
+
 
 %% ~Make other sections like Warning with \section{Warning }{....} ~
 
-\seealso{
-%% ~~objects to See Also as \code{\link{help}}, ~~~
-}
 \examples{
 n <- 20
 w <- runif(n)

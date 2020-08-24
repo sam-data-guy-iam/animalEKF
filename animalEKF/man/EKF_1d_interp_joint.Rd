@@ -13,7 +13,7 @@ EKF_1d_interp_joint(d, npart=100, sigma_pars,
                     Errvar0=rep(list(5), 2), Errvar_df=c(20, 20), 
                     Particle_errvar0, Particle_err_df=20, delaysample=1,
                     dirichlet_init=c(10,3,3,8), maxStep=NULL, 
-                    state_favor=c(1,1.5), nstates=2,
+                    state_favor=c(1,1), nstates=2,
                     lowvarsample=FALSE, time_radius=60*30, spat_radius=300,
                     min_num_neibs=10, interact=TRUE, 
                     interact_pars=list(mu0=0, precision0=2,
@@ -70,7 +70,7 @@ Number of regular steps at which resampling will begin.  The default =1 means re
 }
   \item{state_favor}{
 Vector of weights to favor states when resampling (but not propagating).  For instance c(1,3)
-will favor state 2 weight 3 times as much as state 1 weights for particles.
+will favor state 2 weight 3 times as much as state 1 weights for particles.  By default, they are equally weighted.
 }
   \item{nstates}{
 Number of behavioral states.  For now restricted to a maximum of 2.
@@ -166,9 +166,6 @@ String prefix for output PDF filename, if \code{output_plot = TRUE}.  Filename w
   \item{output_dir}{
 Directory for output PDF of diagnostic plots.
 }
-}
-\details{
-%%  ~~ If necessary, more details than the description above ~~
 }
 \value{
 %%  ~Describe the value returned
@@ -284,13 +281,7 @@ Video explanation of EKF state-space model by author: \url{https://youtu.be/Sgyh
 
 %% ~Make other sections like Warning with \section{Warning }{....} ~
 
-\seealso{
-%% ~~objects to See Also as \code{\link{help}}, ~~~
-}
-\examples{
-	
 
-}
 % Add one or more standard keywords, see file 'KEYWORDS' in the
 % R documentation directory.
 \keyword{ ts }% use one of  RShowDoc("KEYWORDS")

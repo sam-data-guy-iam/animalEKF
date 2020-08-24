@@ -42,9 +42,3 @@ Dr. Heiberger for his many hours in advising me on package design and on the \co
 \keyword{ particle filter }
 \keyword{ animal movement }
 \keyword{ telemetry }
-\seealso{
-
-}
-\examples{
-
-}

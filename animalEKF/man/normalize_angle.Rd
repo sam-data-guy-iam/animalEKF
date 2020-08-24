@@ -16,24 +16,12 @@ normalize_angle(theta)
 Numeric vector.
 }
 }
-\details{
-}
-\value{
-}
-\references{
-}
 \author{
-%%  ~~who you are~~
-}
-\note{
-%%  ~~further notes~~
+Samuel Ackerman
 }
 
 %% ~Make other sections like Warning with \section{Warning }{....} ~
 
-\seealso{
-%% ~~objects to See Also as \code{\link{help}}, ~~~
-}
 \examples{
 
 x <- rnorm(n=1000, mean=1, sd=2)

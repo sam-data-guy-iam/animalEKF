@@ -10,11 +10,11 @@ Extended Kalman Filter (EKF) for joint shark movement with interpolation
 \usage{
 EKF_interp_joint(area_map, d, npart=100, sigma_pars, tau_pars,
                  mu0_pars=list(alpha=c(-4.5 ,-2), beta=c(0,0)),
-                 V0_pars=list(c(0.25, 0.25), c(0.25, 0.25)), 
+                 V0_pars=list(alpha=c(0.25, 0.25), beta=c(0.25, 0.25)), 
                  Errvar0=rep(list(diag(2)), 2),
                  Errvar_df=c(20, 20), Particle_errvar0, Particle_err_df=20,
                  dirichlet_init=c(9,2,2,7), logvelocity_truncate=c(-10, 15),
-                 maxStep=NULL, delaysample=1, state_favor=c(1,1.5),
+                 maxStep=NULL, delaysample=1, state_favor=c(1,1),
                  nstates=2,centroids=matrix(c(0,0), ncol=2),
                  truncate_to_map=TRUE, enforce_full_line_in_map=TRUE,
                  do_trunc_adjust=TRUE, lowvarsample=TRUE,
@@ -48,10 +48,11 @@ Vector of inverse-gamma parameters for sigma^2 (logV variance).  Two elements fo
 Vector of inverse-gamma parameters for tau^2 (turn angle variance).
 }
   \item{mu0_pars}{
-List of initial values of mean logV (alpha) and turn (beta) for two behavioral states.
+List of initial values of mean logV (alpha) and turn (beta) for one or two behavioral states.
 }
   \item{V0_pars}{
-List of initial values of degrees of freedom of inverse-gamma sigma and tau.
+List of initial values of degrees of freedom of inverse-gamma sigma and tau (variances of alpha and beta) for 
+one or two behavioral state.
 }
   \item{Errvar0}{
 List of prior 2x2 covariance matrices for predicting y from x, one for each behavioral state.
@@ -87,7 +88,7 @@ Number of regular steps at which resampling will begin.  The default =1 means re
 }
   \item{state_favor}{
 Vector of weights to favor states when resampling (but not propagating).  For instance c(1,3)
-will favor state 2 weight 3 times as much as state 1 weights for particles.
+will favor state 2 weight 3 times as much as state 1 weights for particles.  By default, they are equally weighted.
 }
   \item{nstates}{
 Number of behavioral states.  For now restricted to a maximum of 2.
@@ -202,9 +203,6 @@ String prefix for output PDF filename, if \code{output_plot = TRUE}.  Filename w
 Directory for output PDF of diagnostic plots.
 }
 }
-\details{
-%%  ~~ If necessary, more details than the description above ~~
-}
 \value{
 %%  ~Describe the value returned
 %%  If it is a LIST, use
@@ -244,11 +242,6 @@ Video explanation of EKF state-space model by author: \url{https://youtu.be/Sgyh
 
 %% ~Make other sections like Warning with \section{Warning }{....} ~
 
-\seealso{
-%% ~~objects to See Also as \code{\link{help}}, ~~~
-}
-\examples{
-}
 % Add one or more standard keywords, see file 'KEYWORDS' in the
 % R documentation directory.
 \keyword{ ts }% use one of  RShowDoc("KEYWORDS")

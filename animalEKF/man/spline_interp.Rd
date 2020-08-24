@@ -51,11 +51,9 @@ Degree of spline.  The default is 3, or a cubic.  Every \code{spline_deg}+1 obse
 If \code{nstates}=2, state 1 from the interpolated values will be designated by the logvelocity being < \code{split_logv}.
 }
 }
-\details{
-}
 \value{
-\item{d}{Array of regular steps}
-\item{di}{Original irregular step dataset}
+\item{d}{Array of regular step locations.}
+\item{di}{Original irregular-step dataset.}
 \item{shark_names}{Vector of the names of sharks in the dataset.}
 \item{d_ds}{Output regular-step dataset \code{d} in form \code{data.frame}.}
 }
@@ -63,17 +61,11 @@ If \code{nstates}=2, state 1 from the interpolated values will be designated by 
 Bezier R package.  Aaron Olsen.
 }
 \author{
-%%  ~~who you are~~
+	Samuel Ackerman
 }
-\note{
-%%  ~~further notes~~
-}
-
 %% ~Make other sections like Warning with \section{Warning }{....} ~
 
-\seealso{
-%% ~~objects to See Also as \code{\link{help}}, ~~~
-}
+
 \examples{
 #can also be 'di' output of sim_trajectory_joint
 

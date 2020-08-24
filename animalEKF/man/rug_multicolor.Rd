@@ -25,34 +25,18 @@ Size of tick marks.  Negative values mean ticks are on outside of plot.  This fe
 Vector of color definitions, corresponding to each value of \code{x}.
 }
 }
-\details{
-}
-\value{
-}
-\references{
-}
 \author{
-%%  ~~who you are~~
-}
-\note{
-%%  ~~further notes~~
+Samuel Ackerman
 }
 
 %% ~Make other sections like Warning with \section{Warning }{....} ~
 
-\seealso{
-%% ~~objects to See Also as \code{\link{help}}, ~~~
-}
 \examples{
 
 d <- data.frame(X=runif(20), Y=runif(20))
 plot(d, xlim=c(0,1), ylim=c(0,1))
 rug_multicolor(x=d$X, col_vec=colorspace::rainbow_hcl(n=20), ticksize=-0.05)
 rug_multicolor(x=d$Y, plot_side=4, col_vec=colorspace::rainbow_hcl(n=20), ticksize=-0.05)
- 
-
-
-
 }
 % Add one or more standard keywords, see file 'KEYWORDS' in the
 % R documentation directory.

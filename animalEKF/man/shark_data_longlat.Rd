@@ -15,17 +15,12 @@ Raw shark data spline-interpolated to 90-second intervals (matrix)
   ..$ : NULL
   ..$ : chr [1:7] "date_as_sec" "lat" "lon" "t_intervals" ...
 }
-\details{
-%%  ~~ If necessary, more details than the __description__ above ~~
-}
 \source{
 Espinoza, Mario, Farrugia, Thomas J., and Christopher G. Lowe. Habitat use, movements
 and site fidelity of the gray smooth-hound shark in a newly restored Southern
 California estuary. Journal of Experimental Marine Biology and Ecology, 2011.
 }
-\references{
-%%  ~~ possibly secondary sources and usages ~~
-}
+
 \examples{
 #head(shark_data_longlat)
 ## maybe str(shark_data_longlat) ; plot(shark_data_longlat) ...

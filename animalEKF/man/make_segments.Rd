@@ -20,24 +20,12 @@ the resulting path will consist of disconnected segments in those locations.
 Number of rows of \code{xy} to plot as a path.   By default, the number of rows, so all of \code{xy}.
 }
 }
-\details{
-}
-\value{
-}
-\references{
-}
 \author{
-%%  ~~who you are~~
-}
-\note{
-%%  ~~further notes~~
+Samuel Ackerman
 }
 
 %% ~Make other sections like Warning with \section{Warning }{....} ~
 
-\seealso{
-%% ~~objects to See Also as \code{\link{help}}, ~~~
-}
 \examples{
 
 #generate toy dataset
@@ -47,10 +35,10 @@ d <- as.data.frame(cbind(X=runif(50), Y=runif(50)))
 dseg <- d
 dseg[ sample(20),] <- NA
 
-g <- ggplot(d, aes(x=X, y=Y)) + theme_bw() 
-g <- g + stat_density2d(aes(fill=..density..), geom="tile", contour=FALSE)
+g <- ggplot(d, aes_string(x="X", y="Y")) + theme_bw() 
+g <- g + stat_density2d(aes_string(fill="..density.."), geom="tile", contour=FALSE)
 g <- g + scale_fill_gradient(low="white", high="black") + theme(legend.position="bottom")
-g <- g + geom_path(data=make_segments(xy=dseg), aes(X, Y), colour="red", lwd=1.5) 
+g <- g + geom_path(data=make_segments(xy=dseg), aes_string(x="X", y="Y"), colour="red", lwd=1.5) 
 g
 
 }

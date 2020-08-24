@@ -14,21 +14,30 @@ The means of the log-speeds of the two behaviors are simulated by a normal distr
 
 The transition probabilities between the behaviors are given by "transition probability between type 1 and 2" and "2 and 1".  If box "are transition probabilities known?" is checked, then they are known.  Otherwise, the transition probabilities will be estimated by a Dirichlet prior (vector "Dirichlet prior values" of form 1->1, 1->2, 2->1, 2->2 of positive numbers, which should roughly correspond to the true probabilities in ratio).  Note that the predictions in this simulation are unlikely to be as good as in the prior 1-D example since there are more parameters to learn and only a limited number of timesteps or particles.
 
-Panel 1 shows the particles' distributions of the velocities for each behavior.  Panel 2 shows the location predictions (black dot and rectangle for type 1, x for type 2 as the widths of the 95\% confidence intervals; again these are of constant witdth since the variance is known). Panel 3 shows the overall resampling weights for the particles.  Panel 4 shows the resampled particles, along with their prediction of location and behavior type. 
+Panel 1 shows the particles' distributions of the log-speed for each behavior.  This simulation works best if the distributions are well-separated.
 
-Panel 5 shows the behavior-specific particle weights, reflecting howw well the particle's prediction at each behavior matches what was observed.  The overall weights in panel 3 are calculated for each particle as the sum of the behavior-specific weights.  Ideally, the weights in one panel should be high while in the other panel they should be low.  The behavior-specific weights, however, involve the transition probabilities and the previous simulated behavior, so a particle can have a low weight for the correct behavior if it simply predicted the wrong behavior in the previous step.
+Panel 2 shows the location predictions (center with confidence ellipse, either solid or dashed by behavior type)
 
-Panel 6 shows the accuracy of particle predictions of the behavior.  The color (1=black, 2=red) is the true behavior type, and the height of the bar is the fraction of particles correctly predicting it.  Ideally, all bars should be high.
+Panel 3 shows the overall resampling weights for the particles, as well as the behavior-conditional ones.  The higher the behavior-conditional weight bar is, the better the
+particle's prediction at that behavior matches what was observed.  The overall weight (top row) is the average of the 
+conditional weight values, weighted by the transition probability into that behavior.
 
-Panel 7 shows convergence over time of the means of the particle distributions of velocity to the true value (vertical dashed line). Ideally these should converge to the true value. 
+Panel 4 shows the resampled particles, along with their prediction of location and behavior type.  Ideally, the resampled ellipses should be centered around the observed point.  
+It is not necessarily true that the resampled (most likely) ellipses will be the smallest, since the likelihood of the behavior predicting the observed location is a combination of
+both the density of that location at the ellipse, as well as the likelihood (transition probability) of having that behavior, given the previous one.
+In panel 4, the particle predictions are shown one at a time as that particle is resampled; the weight bar in panel 3 should be in bold as that particle is selected.
 
-Panel 8 shows the predicted locations over time (Xs and dots, for each behavior).  Ideally these should gradually line up with the true locations (vertical dashed lines).
+Panel 5 shows convergence over time of the means of the particle distributions of log-speed (panel 1) to the true value (vertical dashed line). Ideally these should converge to the true value. 
 
-If we choose to have the transition probabilities be unknown, Panel 9 shows the distributions (beta is same as one component of a bivariate Dirichlet) of the transition probabilities.  Ideally these should likewise get closer to the true values, the vertical dashed line. 
+Panel 6 shows the history of predicted locations over time in terms of a spatial density plot (grayscale shading).  Ideally, these should concentrate around the red overlaid trajectory of observed locations.
+
+Panel 7 shows the estimated distributions of the behavior switching probabilities (if they are not known).  The true probabilities are shown by a vertical line, and ideally the mean
+of the estimated distribution should be around there.
+
+Panel 8 shows the accuracy of particle predictions of the behavior.  The color (1=black, 2=grey) is the true behavior type, and the height of the bar is the fraction of particles correctly predicting it.  Ideally, all bars should be high.
+
 }
-\source{
-%%  ~~ reference to a publication or URL from which the data were obtained ~~
-}
+
 \references{
 Ackerman, Samuel.  "A Probabilistic Characterization of Shark Movement Using Location Tracking Data."  Temple Univeristy doctoral thesis, 2018.  \url{https://digital.library.temple.edu/digital/collection/p245801coll10/id/499150}
 
@@ -38,5 +47,3 @@ Carvalho, Carlos M., Johannes, Michael S., Lopes, Hedibert F., and Nicholas G. P
 Video explanation of simulation applet by author: \url{https://youtu.be/4XR8eB89z7E}
 
 }
-
-\keyword{datasets}

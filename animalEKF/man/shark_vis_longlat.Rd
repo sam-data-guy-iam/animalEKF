@@ -17,6 +17,5 @@ Espinoza, Mario, Farrugia, Thomas J., and Christopher G. Lowe. Habitat use, move
 and site fidelity of the gray smooth-hound shark in a newly restored Southern
 California estuary. Journal of Experimental Marine Biology and Ecology, 2011.
 }
-\examples{
-}
+
 \keyword{datasets}

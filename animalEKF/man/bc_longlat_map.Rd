@@ -31,14 +31,8 @@ List of 8
  $ SCALE     : num 1
  - attr(*, "class")= chr "staticMap"
 }
-\details{
-%%  ~~ If necessary, more details than the __description__ above ~~
-}
 \source{
 Google Maps.
-}
-\references{
-%%  ~~ possibly secondary sources and usages ~~
 }
 \examples{
 data(bc_longlat_map)

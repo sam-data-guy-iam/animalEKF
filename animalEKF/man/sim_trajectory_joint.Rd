@@ -95,29 +95,25 @@ An optional vector of time difference values.  By default is NULL, meaning time 
 the time gaps rather than having them be randomly generated.  
 } 
 }
-\details{
-}
 \value{
+\item{d}{
+	Array of regular-step trajectory locations.
 }
-\references{
+\item{d_ds}{
+	Object \code{d} in format \code{data.frame}.
+}
+\item{di}{
+	If \code{gen_irreg==TRUE}, is the non-constant step length locations.
+}
 }
 \author{
-%%  ~~who you are~~
+	Samuel Ackerman
 }
-\note{
-%%  ~~further notes~~
-}
-
 %% ~Make other sections like Warning with \section{Warning }{....} ~
 
-\seealso{
-%% ~~objects to See Also as \code{\link{help}}, ~~~
-}
 \examples{
 
-
-  
-\dontrun{
+\donttest{		
 
 #prepare shapefile
 bolsachica <- rgdal::readOGR(system.file("shapes/FTB_lines.shp", package="animalEKF")[1])
@@ -154,7 +150,8 @@ tmat_list <- list(matrix(c(8, 2, 2, 4), ncol=2, byrow=TRUE),
 #generate 4-shark simulated trajectory with 200 regular steps of length 120 seconds.  
 #Sharks 3 and 4 will be interacting with the others, but 1 and 2 will not.
 			  
-			
+	
+		
 #simulate trajectory
 #setting gen_irreg=TRUE generates an irregular trajectory from the regular-step one
 #with the log-normal specified in dt_lnorm_mu and dt_lnorm_sd
@@ -167,14 +164,19 @@ tmat_list <- list(matrix(c(8, 2, 2, 4), ncol=2, byrow=TRUE),
 #note that the simulation may time out trying to draw points in this starting polygon that end 
 #up in the shapefile boundary
 
+# only estimate movement on first 25 steps
+nsteps_sim <- 200
+nsteps_estimate <- 25
+npart <- 50
+reg_dt <- 120
 
 sim_4sharks <- sim_trajectory_joint(area_map=bolsachica, centroids=regions, 
                                     transition_matrices=tmat_list, nsharks=nsharks,
                                     mu0_pars=list(alpha=c(-4 ,-1.6), beta=c(0,0)), 
                                     var0_pars=list(alpha=c(1,0.25), beta=c(1,.25)),
-                                    N=200, nstates=2, reg_dt=120, gen_irreg=TRUE,
-                                    one_d=FALSE, starting_polygon=vtiles[ 1 ],
-                                    interact=TRUE, 
+                                    N=nsteps_sim, nstates=2, reg_dt=reg_dt,
+                                    gen_irreg=FALSE,one_d=FALSE,
+                                    starting_polygon=vtiles[ 1 ], interact=TRUE, 
                                     interact_pars=list(interacting_sharks=c(3:4),
                                     time_radius=60*30, spat_radius=150,
                                     min_num_neibs=10,
@@ -190,7 +192,7 @@ names(shark_colors) <- shark_names
 
 
 sp::plot(bolsachica, main="Full trajectories")
-plot.deldir(vortess, wlines="tess", add=TRUE)
+deldir::plot.deldir(vortess, wlines="tess", add=TRUE)
 
 for (ss in shark_names) {
     lines(sim_4sharks$d[,c("X","Y"), ss], col=shark_colors[ss])
@@ -207,7 +209,7 @@ for (ss in shark_names) {
 				   
 interp_ds <- interp_trajectory_joint(d=sim_4sharks$d, nstates=2, 
                                      one_d=FALSE, 
-                                     dt_lnorm_mu=log(120),
+                                     dt_lnorm_mu=log(reg_dt),
                                      dt_lnorm_sd=0.4,
                                      centroids=regions)	
 
@@ -215,13 +217,12 @@ interp_ds <- interp_trajectory_joint(d=sim_4sharks$d, nstates=2,
 
 #now plot observed ones, may differ
 sp::plot(bolsachica, main="Observed trajectories")
-plot.deldir(vortess, wlines="tess", add=TRUE)
+deldir::plot.deldir(vortess, wlines="tess", add=TRUE)
 
 for (ss in shark_names) {
     lines(interp_ds[ interp_ds$tag == ss ,c("X","Y")], col=shark_colors[ss])
 }
 
-		
 		
 #try to recover EKF with steps at the original 120 seconds
 #use the original simulated transition and foraging probabilities for comparison		
@@ -242,9 +243,13 @@ Particle_err_init <- 0.5*20*bmat
 		
 		
 #again, if you use gen_irreg=TRUE in sim_trajectory_joint,
-#the input 'd' argument should be sim_4sharks$di 
+#the input 'd' argument should be sim_4sharks$di or interp_ds
 
-ekf_interp_mod <- EKF_interp_joint(d=interp_ds, npart=100, 
+#NOTE: user should set output_plot=TRUE to see PDF,
+#for purposes of package testing we set it to FALSE
+
+
+ekf_interp_mod <- EKF_interp_joint(d=interp_ds, npart=npart, 
                                    area_map=bolsachica,
                                    state_favor=c(1,2),
                                    centroids=regions, 
@@ -253,42 +258,56 @@ ekf_interp_mod <- EKF_interp_joint(d=interp_ds, npart=100,
                                    Errvar0=list(Errvar_init1, Errvar_init2),
                                    Particle_errvar0=Particle_err_init,
                                    mu0_pars=list(alpha=c(-4 ,-1.3), beta=c(0,0)), 
-                                   truncate=TRUE, lowvarsample=TRUE,
+                                   truncate=TRUE, 
                                    neff_sample=0.75, dirichlet_init=c(8,2,2,4), 
-                                   smoothing=FALSE, fix_smoothed_behaviors=FALSE, 
+                                   smoothing=TRUE, fix_smoothed_behaviors=FALSE, 
                                    time_dep_trans=FALSE, resamp_full_hist=FALSE, 
-                                   nstates=2, reg_dt=120, interact=TRUE, 
-                                   maxStep=200, update_eachstep=TRUE, 
+                                   nstates=2, reg_dt=reg_dt, interact=TRUE, 
+                                   maxStep=nsteps_estimate, update_eachstep=TRUE, 
                                    compare_with_known=TRUE, 
                                    known_trans_prob=sim_4sharks$true_transition_prob, 
                                    known_foraging_prob=sim_4sharks$true_foraging_prob, 
-                                   known_regular_step_ds=sim_4sharks$d_ds, 
-                                   output_dir=getwd())		
+                                   known_regular_step_ds=sim_4sharks$d_ds,
+                                   output_plot=FALSE)		
 				   
 
 #simulate one-dimensional movement for 1 robot (shark)
 #here we use gen_irreg=TRUE instead of generating a separate interpolation object
 
-one_d <- sim_trajectory_joint(centroids=NULL, N=300,
+one_d <- sim_trajectory_joint(centroids=NULL, N=nsteps_sim,
                               mu0_pars=list(alpha=c(4, 9)),
                               var0_pars=list(alpha=c(1, 1)),
                               transition_matrices=tmat_list[[ 1 ]], nstates=2,
-                              reg_dt=120, gen_irreg=TRUE, one_d=TRUE, 
+                              reg_dt=reg_dt, gen_irreg=TRUE, one_d=TRUE,
                               dt_lnorm_mu=log(120), dt_lnorm_sd=0.55)
 
 
 
 
-ekf_1d <- EKF_1d_interp_joint(d=one_d$di, npart=100,  maxStep=100, 
+#measurement error
+bmat <- matrix(1)
+Errvar_init1 <-1*bmat
+Errvar_init2 <-3*bmat
+
+
+#particle error
+Particle_err_init <- 0.1*bmat
+
+
+
+ekf_1d <- EKF_1d_interp_joint(d=one_d$di, npart=npart,  maxStep=nsteps_estimate, 
                               state_favor=c(1,1), nstates=2, lowvarsample=TRUE, 
-                              neff_sample=1, time_dep_trans=FALSE, reg_dt=120, 
+                              neff_sample=1, time_dep_trans=FALSE, reg_dt=reg_dt, 
                               max_int_wo_obs=15, resamp_full_hist=FALSE, 
-                              mu0=list(alpha=c(4, 9), V=c(0.25, 0.25)),
+                              alpha0_pars=list(mu0=c(4, 9), V0=c(0.25, 0.25)),
+                              sigma_pars=sigma_pars_init,
+                              Errvar0=list(Errvar_init1, Errvar_init2),
+                              Particle_errvar0=Particle_err_init,
                               compare_with_known=TRUE, 
                               known_trans_prob=one_d$true_transition_prob, 
                               known_foraging_prob=one_d$true_foraging_prob, 
                               known_regular_step_ds=one_d$d_ds, update_eachstep=TRUE,
-                              smoothing=FALSE, output_dir=getwd())							  
+                              smoothing=TRUE, output_plot=FALSE)							  
 				   
 				   
 }				   
