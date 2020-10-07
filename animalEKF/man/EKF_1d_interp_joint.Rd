@@ -155,7 +155,8 @@ If FALSE, then \code{update_eachstep} can be either TRUE or FALSE, but simulated
 at observations for the set of simulated steps. 
 }
   \item{output_plot}{
-Logical.  If yest, a set of diagnostic plots will be printed to a file in \code{output_dir}.
+Logical.  If TRUE, a set of diagnostic plots will be printed to a file in \code{output_dir}.  Otherwise, it 
+will be output to the plotting console.
 }
   \item{loc_pred_plot_conf}{
 Numeric.  Confidence level of confidence interval for location prediction error to plot in step-wise diagnostics.
@@ -187,7 +188,7 @@ If observed gaps are larger than \code{max_int_wo_obs}, the shark's trajectory w
 \item{param_draws}{Posterior sampled values of mean of velocity (or, for 2-D, log-velocity).}
 \item{variance_draws}{Posterior sampled value of variance of velocity (or, for 2-D, log-velocity).}
 \item{eff_size_hist}{History of effective sample sizes in simulations.}
-\item{agree_table}{Table of observed agreement between particle predictions of behavior and those observed, overll and by behavior, if \code{nstates > 1}.}
+\item{agree_table}{Table of observed agreement between particle predictions of behavior and those observed, overall and by behavior, if \code{nstates > 1}.}
 \item{states}{Observed vector of behavioral states.}
 \item{state_counts}{Array of total number of simulated regular-step intervals in each behavioral state.}
 \item{lambda_matrix}{History of particle predicted values of lambda, the behavior variable.}
@@ -197,7 +198,7 @@ resampling weights.  For \code{lambda_matrix}, \code{Xpart_history}, and other e
 \item{transition_mat}{Estimated transition probability matrix parameters for Dirichlet distribution.  If \code{nstates==1}, is meaningless.}
 \item{error_beforesamp}{For each regular step \code{i} with an observation, the quantiles of summed prediction errors before each round of resampling, across history.}
 \item{error_beforesamp_quantiles}{Quantiles of \code{error_beforesamp_allpart} across history.}
-\item{error_final_allpart}{For each regular step \code{i} with an observation, the sum of prediction errors for any obserations in that interval (final after resampling).}
+\item{error_final_allpart}{For each regular step \code{i} with an observation, the sum of prediction errors for any observations in that interval (final after resampling).}
 \item{error_final_quantiles}{Quantiles of \code{error_final_allpart} across history.}
 \item{error_true_allpart}{If \code{compare_with_known == TRUE}, for each regular step \code{i}, the sum of prediction errors for any true locations in that interval.}
 \item{error_true_quantiles}{If \code{compare_with_known == TRUE}, quantiles of \code{error_final_true_allpart} across history.}
@@ -240,7 +241,7 @@ In addition, the following are returned if \code{interact = TRUE}:
 
 The following are returned if \code{smoothing = TRUE}:
 \item{Xpart_history_smoothed}{Resampled values of \code{Xpart_history} by reverse smoothing resampling (see Carvalho et al).}
-\item{error_smoothed_allpart}{For each regular step \code{i}, the sum of prediction errors for smoothed particles for any obserations in that interval.}
+\item{error_smoothed_allpart}{For each regular step \code{i}, the sum of prediction errors for smoothed particles for any observations in that interval.}
 \item{error_smoothed_quantiles}{Quantiles of \code{error_smoothed_allpart} across history.}
 
 In addition, if \code{smooth_parameters = TRUE}:
@@ -254,7 +255,7 @@ In addition, if \code{smooth_parameters = TRUE} and \code{interact = TRUE}:
 \item{interact_intensity_draw_smoothed}{Posterior sampled values of interaction tendency multiplier, at different proportions of neighboring sharks with second behavior type, after resampling by smoothing.}
 
 In addition to smoothing, if \code{compare_with_known = TRUE}:
-\item{error_smoothed_true_allpart}{For each regular step \code{i}, the sum of prediction errors for smoothed particles for any obserations in that interval.}
+\item{error_smoothed_true_allpart}{For each regular step \code{i}, the sum of prediction errors for smoothed particles for any observations in that interval.}
 \item{error_smoothed_true_quantiles}{Quantiles of \code{error_smoothed_true_allpart} across history.}
 
 
@@ -268,7 +269,8 @@ In addition to smoothing, if \code{smoothing = TRUE} but \code{fix_smoothed_beha
 	
 }
 \references{
-Ackerman, Samuel.  "A Probabilistic Characterization of Shark Movement Using Location Tracking Data."  Temple Univeristy doctoral thesis, 2018.  \url{https://digital.library.temple.edu/digital/collection/p245801coll10/id/499150}
+Ackerman, Samuel.  "A Probabilistic Characterization of Shark Movement Using Location Tracking Data."  Temple University doctoral thesis, 2018.  \url{https://digital.library.temple.edu/digital/collection/p245801coll10/id/499150}
+
 Carvalho, Carlos M., Johannes, Michael S., Lopes, Hedibert F., and Nicholas G. Polson.  "Particle learning and smoothing."  Statistical Science, 2010.
 }
 \author{

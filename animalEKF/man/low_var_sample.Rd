@@ -44,7 +44,7 @@ Samuel Ackerman
 n <- 20
 w <- runif(n)
 
-#can use M ne to length(wts)
+#can use M != to length(wts)
 low_var_sample(wts=w, M=15)
 
 lv <- low_var_sample(wts=w, M=n)

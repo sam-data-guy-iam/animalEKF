@@ -7,7 +7,7 @@ Original shark data
 \description{
 Original shark data observations, unequally spaced in time
 }
-\usage{data("shark_data_raw")}
+\usage{data(shark_data_raw)}
 \format{
   A data frame with 68528 observations on the following 12 variables.
   \describe{
@@ -32,16 +32,11 @@ California estuary. Journal of Experimental Marine Biology and Ecology, 2011.
 }
 \examples{
 
-##stored as separate integer and numberic variables for storage purposes
-
-\dontrun{
+##stored as separate integer and numeric variables for storage purposes
 
 data(shark_data_raw, package="animalEKF")
 shark_data <- do.call(cbind, shark_data_raw)
 head(shark_data)
-}
 
-
-## maybe str(shark_data) ; plot(shark_data) ...
 }
 \keyword{datasets}

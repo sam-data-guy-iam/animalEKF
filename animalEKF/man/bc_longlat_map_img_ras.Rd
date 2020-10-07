@@ -17,6 +17,5 @@ Google Maps.
 }
 \examples{
 data(bc_longlat_map_img_ras)
-## maybe str(bc_longlat_map_img_ras) ; plot(bc_longlat_map_img_ras) ...
 }
 \keyword{datasets}

@@ -143,7 +143,7 @@ Logical. If TRUE, state transition matrices are time-dependent meaning that prob
 Logical.  If TRUE, perform smoothing at the end.
 }
   \item{fix_smoothed_behaviors}{
-Logical.  If TRUE, when performing smoothing, keep behavior modes fixed for each particle history from what was originally predicted duruing filtering, 
+Logical.  If TRUE, when performing smoothing, keep behavior modes fixed for each particle history from what was originally predicted during filtering, 
 before smoothing.  This means the particles will be smoothed backwards with each particle weight at each time point being conditioned on the 
 behavior predicted in filtering.  Thus, the behavioral agreement with, say, the observed or true behaviors is the same for smoothing as for 
 filtering, since behaviors are not allowed to change.  If \code{nstates==1}, then automatically \code{fix_smoothed_behaviors=FALSE}.
@@ -191,7 +191,8 @@ If FALSE, then \code{update_eachstep} can be either TRUE or FALSE, but simulated
 at observations for the set of simulated steps. 
 }
   \item{output_plot}{
-Logical.  If yest, a set of diagnostic plots will be printed to a file in \code{output_dir}.
+Logical.  If TRUE, a set of diagnostic plots will be printed to a file in \code{output_dir}.  Otherwise, it 
+will be output to the plotting console.
 }
   \item{loc_pred_plot_conf}{
 Numeric.  Confidence level of ellipse for location prediction error to plot in step-wise diagnostics.
@@ -228,7 +229,8 @@ The following inputted parameters are returned:
 %% ...
 }
 \references{
-Ackerman, Samuel.  "A Probabilistic Characterization of Shark Movement Using Location Tracking Data."  Temple Univeristy doctoral thesis, 2018.  \url{https://digital.library.temple.edu/digital/collection/p245801coll10/id/499150}
+Ackerman, Samuel.  "A Probabilistic Characterization of Shark Movement Using Location Tracking Data."  Temple University doctoral thesis, 2018.  \url{https://digital.library.temple.edu/digital/collection/p245801coll10/id/499150}
+
 Carvalho, Carlos M., Johannes, Michael S., Lopes, Hedibert F., and Nicholas G. Polson.  "Particle learning and smoothing."  Statistical Science, 2010.
 }
 \author{

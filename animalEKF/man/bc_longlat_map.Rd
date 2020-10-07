@@ -7,7 +7,7 @@ Image of Bolsa Chica for use with \code{\link{shark_vis_longlat}}
 \description{
 Image of Bolsa Chica for use with \code{\link{shark_vis_longlat}}
 }
-\usage{data("bc_longlat_map")}
+\usage{data(bc_longlat_map)}
 \format{
   The format is:
 List of 8
@@ -33,9 +33,5 @@ List of 8
 }
 \source{
 Google Maps.
-}
-\examples{
-data(bc_longlat_map)
-## maybe str(bc_longlat_map) ; plot(bc_longlat_map) ...
 }
 \keyword{datasets}

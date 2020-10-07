@@ -67,7 +67,7 @@ Bezier R package.  Aaron Olsen.
 
 
 \examples{
-#can also be 'di' output of sim_trajectory_joint
+#can also be 'di' output of sim_trajectory_joint (set gen_irreg=TRUE)
 
 di <- data.frame(X=runif(n=9), Y=runif(n=9),
                  time_to_next=c(2,4,15,8,5,18,3,5,NA))

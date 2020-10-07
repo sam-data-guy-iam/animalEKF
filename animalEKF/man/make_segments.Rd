@@ -2,7 +2,7 @@
 \alias{make_segments}
 %- Also NEED an '\alias' for EACH other topic documented here.
 \title{
-Plot path on ggplot.
+Plot path connecting points on ggplot.
 }
 \description{
 Convert x-y coordinates to a \code{data.frame} for \code{geom_path} plotting on \code{\link{ggplot}}.
@@ -31,6 +31,7 @@ Samuel Ackerman
 #generate toy dataset
 library(ggplot2)
 d <- as.data.frame(cbind(X=runif(50), Y=runif(50)))
+
 #create segments with some missing lines so will be some gaps)
 dseg <- d
 dseg[ sample(20),] <- NA

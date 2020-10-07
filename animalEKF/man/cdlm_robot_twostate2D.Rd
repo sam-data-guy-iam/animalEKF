@@ -34,12 +34,12 @@ Panel 6 shows the history of predicted locations over time in terms of a spatial
 Panel 7 shows the estimated distributions of the behavior switching probabilities (if they are not known).  The true probabilities are shown by a vertical line, and ideally the mean
 of the estimated distribution should be around there.
 
-Panel 8 shows the accuracy of particle predictions of the behavior.  The color (1=black, 2=grey) is the true behavior type, and the height of the bar is the fraction of particles correctly predicting it.  Ideally, all bars should be high.
+Panel 8 shows the accuracy of particle predictions of the behavior.  The color (1=black, 2=gray) is the true behavior type, and the height of the bar is the fraction of particles correctly predicting it.  Ideally, all bars should be high.
 
 }
 
 \references{
-Ackerman, Samuel.  "A Probabilistic Characterization of Shark Movement Using Location Tracking Data."  Temple Univeristy doctoral thesis, 2018.  \url{https://digital.library.temple.edu/digital/collection/p245801coll10/id/499150}
+Ackerman, Samuel.  "A Probabilistic Characterization of Shark Movement Using Location Tracking Data."  Temple University doctoral thesis, 2018.  \url{https://digital.library.temple.edu/digital/collection/p245801coll10/id/499150}
 
 Carvalho, Carlos M., Johannes, Michael S., Lopes, Hedibert F., and Nicholas G. Polson.  "Particle learning and smoothing."  Statistical Science, 2010.
 }

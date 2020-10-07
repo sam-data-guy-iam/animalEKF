@@ -35,6 +35,8 @@ Samuel Ackerman
 
 d <- data.frame(X=runif(20), Y=runif(20))
 plot(d, xlim=c(0,1), ylim=c(0,1))
+
+# draw rug of ticks on each axis where the coordinates are
 rug_multicolor(x=d$X, col_vec=colorspace::rainbow_hcl(n=20), ticksize=-0.05)
 rug_multicolor(x=d$Y, plot_side=4, col_vec=colorspace::rainbow_hcl(n=20), ticksize=-0.05)
 }

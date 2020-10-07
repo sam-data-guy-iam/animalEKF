@@ -112,8 +112,7 @@ the time gaps rather than having them be randomly generated.
 %% ~Make other sections like Warning with \section{Warning }{....} ~
 
 \examples{
-
-\donttest{		
+	
 
 #prepare shapefile
 bolsachica <- rgdal::readOGR(system.file("shapes/FTB_lines.shp", package="animalEKF")[1])
@@ -129,12 +128,12 @@ bolsachica <- rgeos::gDifference(bolsachica, island)
 bolsachica@proj4string <- island@proj4string
 
 
-#define Voronoi tesselation of regions, here randomly selected
+#define Voronoi tessellation of regions, here randomly selected
 regions <- as.data.frame(sp::spsample(x=bolsachica, n=3, type="regular"))
 
 nsharks <- 4
 
-#define Voronoi tesselation in which to start shark paths
+#define Voronoi tessellation in which to start shark paths
 vortess <- deldir::deldir(x=regions[,1], y=regions[,2], wlines="tess", 
 							plotit=FALSE, suppressMsge=TRUE)
 vtiles <- tess2spat(vortess)
@@ -165,10 +164,14 @@ tmat_list <- list(matrix(c(8, 2, 2, 4), ncol=2, byrow=TRUE),
 #up in the shapefile boundary
 
 # only estimate movement on first 25 steps
+# for better results, npart should be set higher, like 150 or more
 nsteps_sim <- 200
 nsteps_estimate <- 25
 npart <- 50
 reg_dt <- 120
+
+
+\donttest{	
 
 sim_4sharks <- sim_trajectory_joint(area_map=bolsachica, centroids=regions, 
                                     transition_matrices=tmat_list, nsharks=nsharks,
@@ -183,6 +186,9 @@ sim_4sharks <- sim_trajectory_joint(area_map=bolsachica, centroids=regions,
                                     eta_mu=c(2,1), rho_sd=c(0.75, 0.75)),
                                     time_dep_trans=FALSE, 
                                     dt_lnorm_mu=log(120), dt_lnorm_sd=0.4) 
+
+
+
 
 #plot trajectories
 

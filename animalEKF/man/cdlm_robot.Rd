@@ -9,7 +9,7 @@ Shiny app for 1D simulation of robot movement with CDLM.
 \usage{cdlm_robot()}
 \details{
 This shiny app illustrates a 1-D robot movement model.  Here, T ("maximum number of iterations") steps are simulated for a robot moving along a 1-D line.  Each of the T steps represents a length of time represented by "time step (sec)" seconds; the longer the interval, the more location uncertainty there is between steps.  
-At each step, the robot moves with velocity (v_t) modeled by a normal distribution with mean alpha ("unknown true mean of velocity") and variance "known true variance." For simplicity, we will only attempt to model the mean velocity while sequentially observing only the locations, since we assume the variane is known. 
+At each step, the robot moves with velocity (v_t) modeled by a normal distribution with mean alpha ("unknown true mean of velocity") and variance "known true variance." For simplicity, we will only attempt to model the mean velocity while sequentially observing only the locations, since we assume the variance is known. 
 The particle filter learns the movement parameters through N ("number of particles") particles, or independent simulations.  At each point in time, the filter simulates N draws of the velocity from the prior distribution, a normal distribution with mean mu ("prior mean on velocity mean") and variance sigma ("prior variance on velocity mean"). These distributions are shown in color panel 1.  Ideally, over time the colored distributions should converge to the true one (thick black curve).
 
 Panel 1 shows the particles' distributions of the velocities.  Ideally the means of these distributions should converge to the true value (vertical line).
@@ -30,7 +30,7 @@ The particle filter models the true value of location and the true velocity.  It
 }
 
 \references{
-Ackerman, Samuel.  "A Probabilistic Characterization of Shark Movement Using Location Tracking Data."  Temple Univeristy doctoral thesis, 2018.  \url{https://digital.library.temple.edu/digital/collection/p245801coll10/id/499150}
+Ackerman, Samuel.  "A Probabilistic Characterization of Shark Movement Using Location Tracking Data."  Temple University doctoral thesis, 2018.  \url{https://digital.library.temple.edu/digital/collection/p245801coll10/id/499150}
 
 Carvalho, Carlos M., Johannes, Michael S., Lopes, Hedibert F., and Nicholas G. Polson.  "Particle learning and smoothing."  Statistical Science, 2010.
 
