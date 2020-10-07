@@ -76,10 +76,9 @@ initialize_SSM_params_EKF_interp_joint <- function(env_obj) {
 	env_obj$mu[,"alpha","mu",,] <- env_obj$mu0_pars$alpha
 	env_obj$mu[,"beta","mu",,] <- env_obj$mu0_pars$beta
 	
-	for (k in 1:env_obj$nstates) {
-		env_obj$mu[k,,"V",,] <- env_obj$V0_pars[[ k ]]
-	}
-
+	env_obj$mu[,"alpha","V",,] <- env_obj$V0_pars$alpha
+	env_obj$mu[,"beta","V",,] <- env_obj$V0_pars$beta	
+			
 
 	for (k in 1:env_obj$nstates) {
 	 

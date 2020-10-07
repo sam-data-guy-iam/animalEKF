@@ -10,11 +10,11 @@ ui=shinyUI(fluidPage(
   titlePanel("Particle filter example of estimating mean log-speeds and location of 2-D robot\nfor two behavior types"),
   sidebarLayout(position = "left",
                              sidebarPanel("Simulation parameters", width=3,
-							   sliderInput('iter',"Progress of simulation",value=1, min=1, max=50, round=TRUE, step=1,
+							   sliderInput('iter',"Progress of simulation",value=1, min=1, max=40, round=TRUE, step=1,
 				                 animate=animationOptions(interval=7000, loop=FALSE)),
 		      				    actionButton('run',"Accept settings, press play above"),
-								sliderInput('max_iter','Maximum number of iterations',value=20, min=1, max=30, round=TRUE, step=1),
-								checkboxInput('sep_col',"Color particles differently (not recommended if more than 30 particles)",value=TRUE),								
+								sliderInput('max_iter','Maximum number of iterations',value=20, min=1, max=40, round=TRUE, step=1),
+								checkboxInput('sep_col',"Color particles differently (not recommended for large number of particles)",value=TRUE),								
 								sliderInput('npart','Number of particles',value=6, min=2, max=40, round=TRUE, step=1),
 								sliderInput('vel_mu1',"Unknown true mean of log-speed (units/sec), type 1",value=1.5, min=-6, max=6, round=FALSE, step=0.05),
 								sliderInput('vel_mu2',"Unknown true mean of log-speed (units/sec), type 2",value=4, min=-6, max=6, round=FALSE, step=0.05),
@@ -27,7 +27,8 @@ ui=shinyUI(fluidPage(
 								sliderInput('mu_var','Prior variance on log-speed means',value=0.4, min=0.1, max=1, round=FALSE, step=0.05),
 								sliderInput('p1to2','Transition probability between type 1 and 2',value=0.2, min=0, max=1, round=FALSE, step=0.05),
 								sliderInput('p2to1','Transition probability between type 2 and 1',value=0.2, min=0, max=1, round=FALSE, step=0.05),
-								checkboxInput('tp_known','Are transition probabilities known?',value=TRUE),
+								sliderInput('state2_favor','Extra multiplicative favor of type 2 behavior',value=5, min=0.1, max=15, round=FALSE, step=0.1),
+								checkboxInput('tp_known','Are transition probabilities known?',value=FALSE),
 								textInput('dir_prior',"Dirichlet prior values on transition probability.\nEnter 4 positive numbers, comma separated.", value="8,2,2,8"),
 							    textInput('xt_var',"Covariance matrix of position and velocity.\nEnter 4 numbers (comma delimited) for a covariance matrix, where the 4th should be the same as the velocity variance.  Coerced to PD matrix.",
 							        value="0.1,0,0,0.1"),
@@ -57,9 +58,11 @@ server=shinyServer(function(input, output, session)
   
    observeEvent( input$run, {
         
-		
-	    #prev_pars <- list(mai=par()$mai)
-		
+		req(input$run)
+
+		old_pars <- par(mfrow=par()$mfrow, mfcol=par()$mfcol, mar=par()$mar, las=par()$las, xpd=par()$xpd, oma=par()$oma)
+		on.exit(expr=par(old_pars))	
+   
 	
         updateSliderInput(session, "iter",  label="Progress of simulation", value=1, min=1, max=input$max_iter, step=1)
 		render_delay_step <- 1000 * input$render_delay / input$npart
@@ -68,7 +71,7 @@ server=shinyServer(function(input, output, session)
 	   
 		
 		dir_prior <- abs(as.numeric(numextractall(input$dir_prior)))
-	    dir_prior[ dir_prior==0 ] <- 1e-10
+		dir_prior <- pmax(dir_prior, 1.01)
 		
 		
 		#matrix equations
@@ -126,8 +129,6 @@ server=shinyServer(function(input, output, session)
 		}
   
   
-  
-		
         yt <- matrix(NA, ncol=6, nrow=input$max_iter +1)
         colnames(yt) <- c("X","Y","vel","bear","turn","state")
 		yt[,"turn"] <- 0
@@ -155,7 +156,8 @@ server=shinyServer(function(input, output, session)
 		for (ii in 1:input$max_iter) {
 		  yt[ii+1,"state"] <- sample(x=1:2, size=1, prob=tmat[yt[ii,"state"],])
 		}
-		
+
+
 		ydens_range_wts <- c(0, 1e-2)
 		
 		#plot(x=-1000, y=-10000, xlim=box_bounds[,1], ylim=box_bounds[,2], pch="1")
@@ -189,8 +191,8 @@ server=shinyServer(function(input, output, session)
 				}
 			}
 		}
-		
-		
+
+
 		#add measurement noise
 		yt_var <- as.numeric(numextractall(input$yt_var))
 		yt_var[ c(1,4) ] <- pmax(0.1, abs(yt_var[ c(1,4) ]))
@@ -233,8 +235,9 @@ server=shinyServer(function(input, output, session)
 
 		params<- reactiveValues(dnames= list(c("orig","resamp"), paste("i",1:(input$max_iter+1),sep=""), paste("state",1:2,sep=""), paste("p",1:input$npart,sep=""))) 
 		xt_names <- c("X","Y","vel","bear")     
-			 
-			 
+
+		params$test_counter <- rep(NA, input$npart)
+	 
 		params$Pk = array(0, dim=c(4,4,2,input$max_iter+1,2,input$npart), dimnames=c(list(xt_names,xt_names),params$dnames))
 		params$mk = array(0, dim=c(4,2,input$max_iter+1,2,input$npart), dimnames=c(list(xt_names),params$dnames))
 		
@@ -249,7 +252,6 @@ server=shinyServer(function(input, output, session)
 
 		params$MuY_actual = array(NA, dim=c(2,2,input$max_iter+1,input$npart), dimnames=c(list(c("X","Y"),c("resamp","resamp_hist")), params$dnames[ -c(1,3) ]))
 		params$SigY_actual = array(NA, dim=c(2,2,2,input$max_iter+1,input$npart), dimnames=c(list(c("X","Y"),c("X","Y"),c("resamp","resamp_hist")), params$dnames[ -c(1,3) ]))
-
 		
 		params$Wishart_mat <- array(0, dim=c(2,2,2,2,2,input$npart), 
 			dimnames=c(list(c("X","Y"),c("X","Y"),c("obs","particle")), params$dnames[ -2 ]))
@@ -285,7 +287,7 @@ server=shinyServer(function(input, output, session)
 
 		params$resamp_colors = array(NA, dim=c(2,input$max_iter+1, input$npart), dimnames=params$dnames[ -3 ])
 		params$is_new_step = rep(TRUE, input$max_iter)
-	
+
   	    #initial guesses
 		params$dir_params[,"orig","i1",] <- dir_prior
 		
@@ -301,13 +303,8 @@ server=shinyServer(function(input, output, session)
 			params$trans_draws["1to",1:2,"orig","i1",] <- pmax(apply(params$dir_params[c("a11","a12"),"orig","i1",], 2, function(x) MCMCpack::rdirichlet(n=1, alpha=x)), 1e-20)
 			params$trans_draws["2to",1:2,"orig","i1",] <- pmax(apply(params$dir_params[c("a21","a22"),"orig","i1",], 2, function(x) MCMCpack::rdirichlet(n=1, alpha=x)), 1e-20)
 		}
-		
-		trans_dens_mode <- c(params$dir_params[c("a12","a21"),"orig",1,1]-1)/c(params$dir_params[c("a12","a21"),"orig",1,1] + params$dir_params[c("a11","a22"),"orig",1,1]-2)
-		trans_dens_mode_dens <- c(dbeta(x=trans_dens_mode[ 1 ], shape1=params$dir_params["a12","orig",1,1], shape2=params$dir_params["a11","orig",1,1]),
-								  dbeta(x=trans_dens_mode[ 2 ], shape1=params$dir_params["a21","orig",1,1], shape2=params$dir_params["a22","orig",1,1]))
-		trans_dens_range <- c(0, 2*max(trans_dens_mode_dens))						  
-		 
 
+		
 		
 		#know which one you start in
 		params$curr_state["orig","i1",] <- yt[1,"state"]
@@ -333,11 +330,9 @@ server=shinyServer(function(input, output, session)
 			params$vel_guess["orig",ii,,] <- params$vel_guess["orig","i1",,] 
 		}
 		#initialize
-
 		
 		for (nn in 1:input$npart) {
-		#	print(params$df_error["particle","orig",1,nn])
-		#	print(params$Wishart_mat[,,"particle","orig",1,nn])
+
 			params$Pk[1:2,1:2,"orig",input$iter,1:2,nn] <- bmat#MCMCpack::riwish(v=params$df_error["particle","orig",1,nn], S=params$Wishart_mat[,,"particle","orig",1,nn])						 
 
 		}
@@ -350,9 +345,7 @@ server=shinyServer(function(input, output, session)
 		for (nn in 1:input$npart) {
 			params$xpart[,"orig","i1",nn] <- params$mk[,"orig","i1",yt[1,"state"],nn]
 		} 
-		#loc_axis <- seq(0, ceiling(yt[input$max_iter+1,"true_loc"]), by=max(round(input$max_iter/10), 1)*mean(c(input$vel_mu1, input$vel_mu2)))    
-        #xrange <- nice_range(x=yt[,"true_loc"], ep=0.1)
-		
+
 		xdens_range1 <- input$vel_mu1 + c(-2.5,2.5)*sqrt(input$mu_var)
 		xdens_range2 <- input$vel_mu2 + c(-2.5,2.5)*sqrt(input$mu_var)
 
@@ -372,29 +365,29 @@ server=shinyServer(function(input, output, session)
 		
 		#for first, want to make sure stays in the right direction
 		params$Qt[3:4,3:4,"orig",] <- diag(c(input$vel_var, 0.05))
-							
-					
+				
 		
+				
 		plot.new()
         par(xpd=TRUE, las=1) 	
 
-		#print(params$Wishart_mat[,,,"orig",1,])
-		#print(params$df_error)
 		
-		 observeEvent( input$iter, { 
+		observeEvent( input$iter, { 
 					req(input$run)
 					req(input$iter > 1)	
-		
-					if (params$is_new_step[ input$iter ] & input$iter >1) {
+					
+
+					if (params$is_new_step[ input$iter ] & input$iter > 1) {
 						#a quick fix to set future values to TRUE
 						params$is_new_step[ (input$iter+1):(input$max_iter)] <- TRUE
 					
 						#params$resamp_colors["orig",input$iter,order(apply(params$mu_guess["orig",input$iter,,],2,min))] <- rainbow_cols 
 					    params$resamp_colors["orig",input$iter,] <- rainbow_cols
-					
+					    params$wts_counter <- 0
+					    params$locs_counter <- 0
 						
 						for (nn in 1:input$npart) {
-						
+
 							params$Qt[1:2,1:2,"orig",nn] <- MCMCpack::riwish(v=params$df_error["particle","orig",1,nn], S=params$Wishart_mat[,,"particle","orig",1,nn])
 						
 							for (kk in 1:2) {					
@@ -417,15 +410,18 @@ server=shinyServer(function(input, output, session)
 							
 								params$SigY[,,"orig",input$iter,kk,nn] 	<- as.numeric(Matrix::nearPD(Hxmat%*%params$Pk_prev[,,"orig",input$iter,kk,nn]%*%t(Hxmat) + params$Rt[,,"orig",kk,nn], ensureSymmetry=TRUE)$mat)
 							
-							}							
+							}
+
 						}
-					
+						
+											
                     }
 					
 					#density of particle velocities	
 					output$densplot <- renderPlot({ 
 					    #par(mfrow=c(1,2))
-					    if (input$iter >0) {
+					    if (input$iter > 0) {
+
 							densplot_twostate(dpts=dens_pts, mu_guess=params$mu_guess["orig",input$iter,,], norm_sds=sqrt(input$vel_var), known_mean=c(input$vel_mu1, input$vel_mu2),
 									colors=params$resamp_colors["orig",input$iter,], ylims=ydens_range, xlims=xdens_range, before_after="before",
 									sep_col=input$sep_col, npart=input$npart, var_name="log-speed")
@@ -445,51 +441,44 @@ server=shinyServer(function(input, output, session)
 					})
 					
 					
+					
 					if (params$is_new_step[ input$iter ]) {			
 					
 						#resample
 						
 						ynext <- yt[input$iter+1,c("X","Y")]
-					
+
 						for (nn in 1:input$npart) {
-							#print(params$MuY[,,"orig",input$iter,"state1",nn])
+														
+							params$wts[input$iter,"state1",nn] <- mvtnorm::dmvnorm(x=ynext, mean=params$MuY[,"orig",input$iter,"state1",nn], sigma=params$SigY[,,"orig",input$iter,"state1",nn])
+							params$wts[input$iter,"state2",nn] <- mvtnorm::dmvnorm(x=ynext, mean=params$MuY[,"orig",input$iter,"state2",nn], sigma=params$SigY[,,"orig",input$iter,"state2",nn])
 							
-							#print(params$SigY[,,"orig",input$iter,"state1",nn])
 							
-							#print(mvtnorm::dmvnorm(x=ynext, mean=c(-100,0), sigma=50*diag(2)))
-							#print(as.matrix(params$MuY[,"orig",input$iter,"state1",nn]))
-							#print(as.matrix(params$SigY[,,input$iter,"state1",nn]))
-							#params$SigY = array(NA, dim=c(2,2,3,input$max_iter+1,2,input$npart), dimnames=c(list(c("X","Y"),c("X","Y"),c("orig","resamp","resamp_hist")), params$dnames[ -1 ]))
-
-							#print(mvtnorm::dmvnorm(x=ynext, mean=as.matrix(params$MuY[,"orig",input$iter,"state1",nn]), sigma=as.matrix(params$SigY[,,input$iter,"state1",nn])))
-					
-							
-							params$wts[input$iter,"state1",] <- mvtnorm::dmvnorm(x=ynext, mean=params$MuY[,"orig",input$iter,"state1",nn], sigma=params$SigY[,,"orig",input$iter,"state1",nn])
-							params$wts[input$iter,"state2",] <- mvtnorm::dmvnorm(x=ynext, mean=params$MuY[,"orig",input$iter,"state2",nn], sigma=params$SigY[,,"orig",input$iter,"state2",nn])
 							params$wts[input$iter,,nn] <- pmax(params$wts[input$iter,,nn], 1e-60)
-							
+
 							#multiply by transition probabilities
-							params$wts[input$iter,,nn] <- params$wts[input$iter,,nn]*params$trans_draws[ params$curr_state["orig",input$iter-1,nn],, "orig", input$iter-1,nn]
-
+							params$wts[input$iter,,nn] <- params$wts[input$iter,,nn] * params$trans_draws[ params$curr_state["orig",input$iter-1,nn],, "orig", input$iter-1,nn]
+													
 						}
-
+						
+						# apply state favor
+						params$wts[input$iter,"state2",] <- params$wts[input$iter,"state2",] * input$state2_favor
+						
 						params$wts[input$iter,,] <- pmax(params$wts[input$iter,,], 1e-60)
-											
+						
 						#params$wts[ input$iter, is.na(params$wts[input$iter,])] <- 1#1e-15
 						qwt <- quantile(x=params$wts[input$iter,,], probs=0.85)
-									
+						
 						params$indices[input$iter,] <- low_var_sample(wts=colSums(params$wts[input$iter,,]), M=input$npart)
-						##sample(x=1:input$npart, size=input$npart, prob=colSums(params$wts[input$iter,,]), replace=TRUE)
+						
 						
 						if (! input$sep_col) { params$resamp_colors["orig",input$iter, colSums(params$wts[input$iter,,]) >qwt ] <- "red" }
 						
 					}
 					
-					
-					
 					output$pred_loc <- renderPlot({
-						 if (input$iter >1) {	
-						
+						 if (input$iter > 1) {	
+							
 							pred_loc_2D(yt=yt[1:(input$iter+1),c("X","Y")], bds=box_bounds, start_pt=params$xpart[c("X","Y"),"orig",input$iter-1,], MuY=params$MuY[,"orig",input$iter,,], 
 										SigY=params$SigY[,,"orig",input$iter,,], conf=input$conf_level, wts=params$wts[input$iter,,], before_after="before",  npart=input$npart,
 										colors=params$resamp_colors["orig",input$iter,], states=NULL) 
@@ -499,19 +488,18 @@ server=shinyServer(function(input, output, session)
 					})
 					
 					
-				
-					
 					# #next location
 					
 					#main problem: this is reacting too late because the locations are the same in both before/after plots
 				   		
-					if (params$is_new_step[ input$iter ] & input$iter >1) {
+					if (params$is_new_step[ input$iter ] & input$iter > 1) {
 						ord <- params$indices[input$iter, ]
 							
-						params$curr_state["resamp",input$iter-1,] <- params$curr_state["resamp_hist",input$iter-1,] <- params$curr_state["orig",input$iter-1,ord]
+						params$curr_state["resamp",input$iter-1,] <- params$curr_state["orig",input$iter-1,ord]
+						params$curr_state["resamp_hist",input$iter-1,] <- params$curr_state["resamp",input$iter-1,]
 						
+						# draw new states according to relative wts
 						params$curr_state["orig",input$iter,] <- apply(params$wts[input$iter,,ord], 2, function(x) low_var_sample(wts=x, M=1))
-												
 
 						params$mk[,"resamp",input$iter-1,,] <- params$mk[,"orig",input$iter-1,, ord]
 						params$mk_prev[,"resamp",input$iter,,] <- params$mk_prev[,"orig",input$iter,, ord]
@@ -532,7 +520,7 @@ server=shinyServer(function(input, output, session)
 						params$Rt[,,"resamp",,] <- params$Rt[,,"orig",,ord] 
 						params$df_error[,"resamp",,] <- params$df_error[,"orig",,ord]
 							
-						if (input$iter >2) {
+						if (input$iter > 2) {
 							params$xpart[,"resamp",1:(input$iter-2),] <- params$xpart[,"resamp",1:(input$iter-2),ord]
 							
 						}
@@ -544,7 +532,7 @@ server=shinyServer(function(input, output, session)
 							params$SigY_actual[,,"resamp",input$iter,nn] <- params$SigY[,,"resamp",input$iter,z,nn]
 
 						}
-							
+
 						# if (input$iter >1 ) {
 							# params$curr_state["resamp", 1:(input$iter-1),] <- params$curr_state["resamp", 1:(input$iter-1),ord]
 							# params$MuY[,"resamp",1:(input$iter-1),,] <- params$MuY[,"resamp",1:(input$iter-1),,ord]
@@ -560,61 +548,47 @@ server=shinyServer(function(input, output, session)
 						params$resamp_colors["resamp",input$iter,] <- params$resamp_colors["orig",input$iter, ord]
 						
 						params$dir_params[,"resamp",input$iter-1,] <- params$dir_params[,"orig",input$iter-1,ord]
+						
 						if (input$tp_known==FALSE) { params$trans_draws[,,"resamp",input$iter-1,] <- params$trans_draws[,,"orig",input$iter-1,ord] }
 						
-						
-						
-						
-						#not sure about this
-						#params$curr_state["state","resamp_hist",1:input$iter,] <- params$Ydist_actual["state","resamp_hist",1:input$iter,ord]
-						
-						#if (input$iter >1) {
-						#	params$Ydist_actual[c("MuY","VarY"),"resamp_hist", 1:(input$iter-1),] <- params$Ydist_actual[c("MuY","VarY"),"resamp_hist", 1:(input$iter-1),ord]
-						#}
+				
 						
 					}
 
 					ydens_range_wts <- max(colSums(params$wts[input$iter,,]))
 					ydens_range_wts <- c(0, ydens_range_wts*1.33)
 					
-					wts_sep_counter <<-  locs_counter <<- 0 
+
 						
 						
-					
+				
 					#distribution of weights
 					output$wt_dist_sep <- renderPlot({
-					   #par(mfrow=c(1,2))
 					   #should have a panel for each state and combined
+
+							
 						if (input$iter > 1) {	
-					   
 
 							if (params$is_new_step[ input$iter ]==FALSE & params$is_new_step[ input$iter+1 ]==TRUE) {
-								#print(params$curr_state["resamp", input$iter, ])
+					
+								invalidateLater(millis=render_delay_step)
+								isolate(params$wts_counter <- min(input$npart, params$wts_counter + 1))
+							
+							
 								
-								wts_sep_counter <<- wts_sep_counter + 1
+							
+								m <- wt_dist_twostate_loop(wts=params$wts[input$iter,,], xlims=xdens_range, ylims=ydens_range_wts, known_mean=c(input$vel_mu1, input$vel_mu2), 
+													  mu_guess=params$mu_guess["orig", input$iter,,], iter=input$iter,
+													  npart=input$npart, colors=params$resamp_colors["orig",input$iter,], sep_col=input$sep_col, 
+													  index=params$indices[ input$iter, params$wts_counter], var_name="log-speed",
+													  behavior=params$curr_state["orig", input$iter, params$wts_counter])
 
-								if ( wts_sep_counter >=1 & wts_sep_counter < input$npart) {  invalidateLater(millis=render_delay_step) }
-									
-									# m <- wt_dist_twostate_loop(wts=params$wts[input$iter,,], xlims=xdens_range, ylims=ydens_range_wts, known_mean=c(input$vel_mu1, input$vel_mu2), 
-																# mu_guess=params$mu_guess["orig", input$iter,,], 
-																# npart=input$npart, colors=params$resamp_colors["orig",input$iter,], sep_col=input$sep_col,
-																# main_title=paste("Behavior-conditional resampling weights, t=", input$iter), 
-																# index=params$indices[ input$iter, wts_sep_counter], 
-																# behavior=params$curr_state["orig", input$iter, wts_sep_counter])
-																
-																
-									m <- wt_dist_twostate_loop(wts=params$wts[input$iter,,], xlims=xdens_range, ylims=ydens_range_wts, known_mean=c(input$vel_mu1, input$vel_mu2), 
-																mu_guess=params$mu_guess["orig", input$iter,,], iter=input$iter,
-																npart=input$npart, colors=params$resamp_colors["orig",input$iter,], sep_col=input$sep_col, 
-																index=params$indices[ input$iter, wts_sep_counter], var_name="log-speed",
-																behavior=params$curr_state["orig", input$iter, wts_sep_counter])
-																			
-													
-									m
+				
+								m
 									
 							}	
-							else {
-
+							else {								
+					
 								wt_dist_twostate(wts=params$wts[input$iter,,], xlims=xdens_range, ylims=ydens_range_wts, known_mean=c(input$vel_mu1, input$vel_mu2), 
 												mu_guess=params$mu_guess["orig", input$iter,,], iter=input$iter, var_name="log-speed",
 												npart=input$npart, colors=params$resamp_colors["orig",input$iter,], sep_col=input$sep_col,
@@ -626,88 +600,56 @@ server=shinyServer(function(input, output, session)
 						
 						}	
 					})
-					
-					
-				
-					# #weight sums
-					# output$wt_dist <- renderPlot({
-					   # #par(mfrow=c(1,2), mai = c(1.02, 0.4, 0.82, 0.4))
-					   # #should have a panel for each state and combined
-					   # if (input$iter >1) {	
-					   
-					   
-							
-							# if (params$is_new_step[ input$iter ]==FALSE & params$is_new_step[ input$iter+1 ]==TRUE) {
-								# #print(params$curr_state["resamp", input$iter, ])
-								
-								# wts_counter <<- wts_counter +1
-																
-								
-								# if ( wts_counter >=1 & wts_counter< input$npart) {  pause_between(3000/input$npart, session) }
-									
-																		
-									# #print(ifelse(params$curr_state["resamp", input$iter, wts_counter]==1, wts_counter, NULL))
-									# m <- wt_dist_loop(wts=colSums(params$wts[input$iter,,]), xlims=xdens_range, ylims=c(0,ydens_range_wts[2]*2), known_mean=c(input$vel_mu1, input$vel_mu2)[ yt[input$iter,"state"] ], 
-													  # mu_guess=colSums(params$mu_guess["orig", input$iter,,]*apply(params$wts[input$iter,,], 2, function(x) x/sum(x))), 
-													  # npart=input$npart, colors=params$resamp_colors["orig",input$iter,], sep_col=input$sep_col,
-													  # main_title=paste("Distribution of TOTAL PARTICLE resampling weights\nbased on predictions of next location, t=",input$iter), 
-													  # index=params$indices[ input$iter, wts_counter])
-													
-									# m
-									
-							# }	
-							# else {
-								
-								# wt_dist(wts=colSums(params$wts[input$iter,,]), xlims=xdens_range, ylims=c(0,ydens_range_wts[2]*2), known_mean=c(input$vel_mu1, input$vel_mu2)[ yt[input$iter,"state"] ], 
-										 # mu_guess=colSums(params$mu_guess["orig", input$iter,,]*apply(params$wts[input$iter,,], 2, function(x) x/sum(x))), 
-										 # npart=input$npart, colors=params$resamp_colors["orig",input$iter,], sep_col=input$sep_col,
-										# main_title=paste("Distribution of TOTAL PARTICLE resampling weights\nbased on predictions of next location, t=",input$iter))									
-							
-							# }
-						
-						# }	
-					# })
-					
-					
-					
-					#print(params$curr_state[,input$iter,])
+
+
+
 					
 					output$pred_loc_resamp <- renderPlot({
-						if (input$iter >1) {	
-
-							if (params$is_new_step[ input$iter ]==FALSE & params$is_new_step[ input$iter+1 ]==TRUE) {
-
-								locs_counter <<- locs_counter + 1
+						
+						if (input$iter > 1) {	
 							
-								if ( locs_counter >= 1 & locs_counter < input$npart) { invalidateLater(millis=render_delay_step) }
-							
-									m <- pred_loc_2D_loop(yt=yt[1:(input$iter+1),c("X","Y")], bds=box_bounds, start_pt=params$xpart[c("X","Y"),"resamp",input$iter-1,], MuY=params$MuY_actual[,"resamp",input$iter,], 
-															SigY=params$SigY_actual[,,"resamp",input$iter,], conf=input$conf_level, wts=params$wts[input$iter,,], before_after="after", npart=input$npart,
-															colors=params$resamp_colors["resamp",input$iter,], index=locs_counter, states=params$curr_state["orig",input$iter,],
-															resamp_indices=params$indices[input$iter,])
+							if (params$is_new_step[ input$iter ]==FALSE & params$is_new_step[ input$iter + 1 ]==TRUE) {
 
-									m
+								invalidateLater(millis=render_delay_step)
+								isolate(params$locs_counter <- min(input$npart, params$locs_counter + 1))
+							
+						
+								pred_loc_2D_loop(yt=yt[1:(input$iter+1),c("X","Y")], bds=box_bounds, start_pt=params$xpart[c("X","Y"),"resamp",input$iter-1,], MuY=params$MuY_actual[,"resamp",input$iter,], 
+												 SigY=params$SigY_actual[,,"resamp",input$iter,], conf=input$conf_level, wts=params$wts[input$iter,,], before_after="after", npart=input$npart,
+												 colors=params$resamp_colors["resamp",input$iter,], index=params$locs_counter, states=params$curr_state["orig",input$iter,],
+												 resamp_indices=params$indices[input$iter,])
+
 								
-							
 							}
 							else {
-								
+																	
+									# pred_loc_2D(yt=yt[1:(input$iter+1),c("X","Y")], bds=box_bounds, start_pt=params$xpart[c("X","Y"),"resamp",input$iter-1,], MuY=params$MuY_actual[,"resamp",input$iter,], 
+												# SigY=params$SigY_actual[,,"resamp",input$iter,], conf=input$conf_level, wts=params$wts[input$iter,,], before_after="after", npart=input$npart,
+												# colors=params$resamp_colors["resamp",input$iter,], states=params$curr_state["resamp_hist",input$iter-1,]) 
 
-									pred_loc_2D(yt=yt[1:(input$iter+1),c("X","Y")], bds=box_bounds, start_pt=params$xpart[c("X","Y"),"resamp",input$iter-1,], MuY=params$MuY_actual[,"resamp",input$iter,], 
-												SigY=params$SigY_actual[,,"resamp",input$iter,], conf=input$conf_level, wts=params$wts[input$iter,,], before_after="after", npart=input$npart,
-												colors=params$resamp_colors["resamp",input$iter,], states=params$curr_state["resamp_hist",input$iter-1,]) 
-							
+									# pred_loc_2D(yt=yt[1:(input$iter+1),c("X","Y")], bds=box_bounds, start_pt=params$xpart[c("X","Y"),"resamp",input$iter-1,], MuY=params$MuY_actual[,"resamp",input$iter,], 
+												# SigY=params$SigY_actual[,,"resamp",input$iter,], conf=input$conf_level, wts=params$wts[input$iter,,], before_after="after", npart=input$npart,
+												# colors=params$resamp_colors["resamp",input$iter,], states=params$curr_state["orig",input$iter,]) 
+									if (input$iter > 2) {
+										# here input$iter flips to next
+										pred_loc_2D(yt=yt[1:(input$iter),c("X","Y")], bds=box_bounds, start_pt=params$xpart[c("X","Y"),"resamp",input$iter-2,], MuY=params$MuY_actual[,"resamp",input$iter-1,], 
+													SigY=params$SigY_actual[,,"resamp",input$iter-1,], conf=input$conf_level, wts=params$wts[input$iter-1,,], before_after="after", npart=input$npart,
+													colors=params$resamp_colors["resamp",input$iter-1,], states=params$curr_state["orig",input$iter-1,]) 
+									}
 							}
 										
 						   
 						
 						 }		
-					 })
-					
-	              			
-					if (params$is_new_step[ input$iter ] & input$iter >1) {
+					})
 					
 					
+
+					
+					
+					if (params$is_new_step[ input$iter ] & input$iter > 1) {
+					
+
 						#draw state according to weights
 						
 						
@@ -738,8 +680,8 @@ server=shinyServer(function(input, output, session)
 							
 						
 						}
-						#now propagate next values
 						
+						#now propagate next values
 						curr_state <- params$curr_state["orig",input$iter,]
 						prev_state <- params$curr_state["resamp",input$iter-1,]
 						alpha_index <- paste("a",prev_state,curr_state, sep="")
@@ -756,6 +698,7 @@ server=shinyServer(function(input, output, session)
 						params$Qt[3:4,3:4,"orig",] <- diag(c(input$vel_var, input$turn_var))
 
 						for (nn in 1:input$npart) {
+
 							z <- curr_state[ nn ]
 						  							
 							params$xpart[,"orig",input$iter, nn ] <- reject_sampling_shiny(mu=params$mk[,"orig",input$iter,z,nn], cmat=params$Pk[,,"orig",input$iter,z,nn],
@@ -767,7 +710,7 @@ server=shinyServer(function(input, output, session)
 							# }
 						   
 						   
-						    if (input$iter>2) {
+						    if (input$iter > 2) {
 								pd <- as.vector(params$xpart[c("X","Y"),"resamp",input$iter-1,nn] - h(mk=params$xpart[c("X","Y","vel","bear"),"resamp",input$iter-2,nn]))
 								#pd <- as.vector(params$xpart[c("X","Y"),"resamp",input$iter-1,nn] - params$mk[c("X","Y"),"resamp",input$iter-1,nn])
 								
@@ -803,8 +746,7 @@ server=shinyServer(function(input, output, session)
 						}
                 
                     }
-					
-												 
+
 				    # #new parameter draws
 					for (kk in 1:2) {
 						params$mu_guess["orig",input$iter+1,kk,] <- rnorm(n=input$npart, mean=params$mu_pars["mu_mean","orig",input$iter+1,kk,], sd=sqrt(params$mu_pars["mu_var","orig",input$iter+1,kk,]))
@@ -815,15 +757,15 @@ server=shinyServer(function(input, output, session)
 						params$trans_draws["1to",1:2,"orig",input$iter,] <- pmax(apply(params$dir_params[c("a11","a12"),"orig",input$iter,], 2, function(x) MCMCpack::rdirichlet(n=1, alpha=x)), 1e-20)
 						params$trans_draws["2to",1:2,"orig",input$iter,] <- pmax(apply(params$dir_params[c("a21","a22"),"orig",input$iter,], 2, function(x) MCMCpack::rdirichlet(n=1, alpha=x)), 1e-20)
 					}
-
+					
 					output$rugplot <- renderPlot({
-					 
-						if (input$iter > 0) {	
+
+						if (input$iter > 0) {
 						
 							convergence_rugplot_twostate(xlims=xdens_range, known_mean=c(input$vel_mu1, input$vel_mu2), max_iter=input$max_iter, iter=input$iter, 
 							 mu_guess=params$mu_guess, npart=input$npart, colors=params$resamp_colors, var_name="log-speed") 
 						
-						 # par(mfrow=c(1,2))
+							# par(mfrow=c(1,2))
 							# convergence_rugplot(xlims=xdens_range, known_mean=input$vel_mu1, max_iter=input$max_iter, iter=input$iter, 
 									# mu_guess=params$mu_guess[,,"state1",], npart=input$npart, 
 									# main_title="Convergence of log-speed\nmean, type 1", var_name="log-speed") 
@@ -833,33 +775,27 @@ server=shinyServer(function(input, output, session)
 									# main_title="Convergence of log-speed\nmean, type 2", var_name="log-speed") 
 						}					
 					})
-					
+
 
 					output$loc_hist <- renderPlot({
+					
 					    if (input$iter > 1) {
-						#print(params$xpart[c("X","Y"),"resamp",1:input$iter,])
-						#print(dim(params$xpart[c("X","Y"),"resamp",1:input$iter,]))
 						
-						locs_tmp <- array(NA, dim=c(2, input$iter, input$npart), dimnames=list(c("X","Y"), 1:input$iter, 1:input$npart))
-						locs_tmp[,1:(input$iter-1),] <- params$xpart[c("X","Y"),"resamp",1:(input$iter-1),]
-						locs_tmp[,input$iter,] <- params$xpart[c("X","Y"),"orig",input$iter,]
-						
-						
-						#locations with
-						pred_loc_dens_2D(yt=yt[1:(input$iter+1),c("X","Y")], bds=box_bounds, locs=locs_tmp)  
-
+							locs_tmp <- array(NA, dim=c(2, input$iter, input$npart), dimnames=list(c("X","Y"), 1:input$iter, 1:input$npart))
+							locs_tmp[,1:(input$iter-1),] <- params$xpart[c("X","Y"),"resamp",1:(input$iter-1),]
+							locs_tmp[,input$iter,] <- params$xpart[c("X","Y"),"orig",input$iter,]
 							
-						
-						#	location_history_v2(omega=params$xpart[1,"resamp",,], xticks=loc_axis, xlims=xrange, iter=input$iter, 
-					     #                npart=input$npart, yt=yt)
-						
-						
+							
+							#locations with
+							pred_loc_dens_2D(yt=yt[1:(input$iter+1),c("X","Y")], bds=box_bounds, locs=locs_tmp)  
+								
+							
 					  }
 					})	
 
 				    output$agree_hist <- renderPlot({
-						if (input$iter >0) {		
-										       
+						if (input$iter > 0) {
+			       
 							#state_agreement(particle_states=params$Ydist_actual["state","resamp_hist",,], actual_states=yt[,"state"], 
 							#				iter=input$iter, npart=input$npart) 
 							
@@ -870,20 +806,22 @@ server=shinyServer(function(input, output, session)
 											iter=input$iter, npart=input$npart) 
 						}		
 					})
-
+					
 					output$trans_prob <- renderPlot({
-						if (input$iter >0 & input$tp_known==FALSE) {		
-									
+
+						if (input$iter > 0 & input$tp_known==FALSE) {		
+	
 							probability_trans(true_probs=c(input$p1to2, input$p2to1), dir_params=params$dir_params[,"orig", input$iter,],
-  										      npart=input$npart, colors=params$resamp_colors["resamp",input$iter,], ylims=trans_dens_range)
+  										      npart=input$npart, colors=params$resamp_colors["resamp",input$iter,])
 						}		
 					})
 
 									
-				
   				params$is_new_step[ input$iter ] <- FALSE
+
 					
-				 })#end of iteration 
+
+				})#end of iteration 
 	
 	 
 		  }) #if run

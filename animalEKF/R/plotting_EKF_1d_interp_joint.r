@@ -21,6 +21,9 @@ plotting_EKF_1d_interp_joint <- function(env_obj) {
 	
 	env_obj$d <- as.data.frame(env_obj$d)
 	env_obj$d$tag <- as.factor(env_obj$tags)
+	
+	old_pars <- par(mfrow=par()$mfrow, mfcol=par()$mfcol, las=par()$las)
+	on.exit(expr=par(old_pars))
 
 	par(mfrow=c(ifelse(env_obj$compare_with_known, 2, 3), 1), las=1)
 
@@ -370,7 +373,7 @@ plotting_EKF_1d_interp_joint <- function(env_obj) {
 			true_shark_ds <- env_obj$known_regular_step_ds[env_obj$known_regular_step_ds$tag == s,]
 			true_shark_ds <- true_shark_ds[true_shark_ds$date_as_sec >= obs_d_time_range[1] & true_shark_ds$date_as_sec <= obs_d_time_range[2],]
 			
-			shark_intervals_to_use <- env_obj$shark_valid_steps[[ s ]][ env_obj$shark_valid_steps[[ s ]] %in% true_shark_ds$t_intervals]
+			shark_intervals_to_use <- env_obj$shark_valid_steps[[ s ]][ env_obj$shark_valid_steps[[ s ]] %in% true_shark_ds$t_intervals[true_shark_ds$t_intervals < env_obj$N]]
 			
 		
 			for (i in shark_intervals_to_use) {

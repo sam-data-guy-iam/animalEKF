@@ -374,7 +374,7 @@ spline_interp <- function(di, area_map=NULL, t_reg=NULL, reg_dt=120, max_dt_wo_o
 			pts <- matrix(d[not_na, c("X","Y"),s], ncol=2)
 			rownames(pts) <- NULL
 			pts <- sp::SpatialPointsDataFrame(coords=pts, data=data.frame(id=1:nrow(pts)))
-			
+			pts@proj4string <- area_map@proj4string
 		
 			inside <- sp::over(pts, area_map)
 			outside <-  is.na(inside)

@@ -14,8 +14,8 @@ ui=shinyUI(fluidPage(
 				              sliderInput('iter',"Progress of simulation",value=1, min=1, max=40, round=TRUE, step=1,
 				                 animate=animationOptions(interval=7000, loop=FALSE)),
 							   actionButton('run',"Accept settings, press play above"),
-								sliderInput('max_iter','Maximum number of iterations',value=15, min=1, max=50, round=TRUE, step=1),
-								checkboxInput('sep_col',"Color particles differently (not recommended if more than 30 particles)",value=TRUE),								
+								sliderInput('max_iter','Maximum number of iterations',value=20, min=1, max=40, round=TRUE, step=1),
+								checkboxInput('sep_col',"Color particles differently (not recommended for large number of particles)",value=TRUE),								
 								sliderInput('npart','Number of particles',value=6, min=2, max=40, round=TRUE, step=1),
 								sliderInput('vel_mu',"Unknown true mean of velocity (units/sec)\n(for best results make sure distribution of velocity is\nfirmly positive or negative)",value=4, min=-10, max=10, round=FALSE, step=0.1),
 								sliderInput('vel_var','Known true variance of velocity',value=1, min=0.1, max=5, round=FALSE, step=1),
@@ -44,15 +44,17 @@ ui=shinyUI(fluidPage(
 server=shinyServer(function(input, output, session) 
 {
 
-        #define empty params object
-        params<- reactiveValues(dnames=NULL, Pk=NULL, mk=NULL, xpart=NULL, Kgain=NULL, mk_prev=NULL,
-		                        Pk_prev=NULL, Ydist=NULL, mu_pars=NULL, indices=NULL, wts=NULL, resamp_colors=NULL,
-								is_new_step=NULL, mu_guess=NULL, vel_guess=NULL, reset=0)
+        # #define empty params object
+        # params <- reactiveValues(dnames=NULL, Pk=NULL, mk=NULL, xpart=NULL, Kgain=NULL, mk_prev=NULL,
+		                         # Pk_prev=NULL, Ydist=NULL, mu_pars=NULL, indices=NULL, wts=NULL, resamp_colors=NULL,
+								 # is_new_step=NULL, mu_guess=NULL, vel_guess=NULL, reset=0, wts_counter=0, locs_counter=0)
 		     
 	
     observeEvent( input$run , { 
 		req(input$run)
 		
+		old_pars <- par(mfrow=par()$mfrow, mfcol=par()$mfcol, mar=par()$mar, las=par()$las, xpd=par()$xpd, oma=par()$oma)
+		on.exit(expr=par(old_pars))	
 		
 		updateSliderInput(session, "iter",  label="Progress of simulation", value=1, min=1, max=input$max_iter, step=1)
 		render_delay_step <- 1000 * input$render_delay / input$npart
@@ -92,8 +94,8 @@ server=shinyServer(function(input, output, session)
 		Pk_init <- as.matrix(Matrix::nearPD(matrix(Pk_init,ncol=2, byrow=TRUE), ensureSymmetry=TRUE)$mat)
 		
 		
-		     
-		params$dnames= list(c("orig","resamp"), paste("i",1:(input$max_iter+1),sep=""),paste("p",1:input$npart,sep=""))      
+		params <- reactiveValues(dnames= list(c("orig","resamp"), paste("i",1:(input$max_iter+1),sep=""),paste("p",1:input$npart,sep="")))      
+		
 		params$Pk = array(Pk_init, dim=c(2,2,2,input$max_iter+1,input$npart), dimnames=c(list(1:2,1:2),params$dnames))
 		params$mk = array(0, dim=c(2,1,2,input$max_iter+1,input$npart), dimnames=c(list(1:2,1),params$dnames))
 		params$xpart = array(NA, dim=c(2,3,input$max_iter+1,input$npart), dimnames=c(list(1:2), list(c("orig","resamp","resamp_hist")), params$dnames[ -1 ]))
@@ -166,9 +168,7 @@ server=shinyServer(function(input, output, session)
 		Hxmat <- Hx(xt=c(1,1))
 		
         dens_pts <- seq(xdens_range[1], xdens_range[2], length.out=75) 
-#        par(xpd=TRUE)
 	
-			
 			
 		observeEvent( input$iter , { 
 		            req(input$run)
@@ -177,17 +177,20 @@ server=shinyServer(function(input, output, session)
                    
  					
   				  			
-					if (params$is_new_step[ input$iter ] & input$iter >1) {
+					if (params$is_new_step[ input$iter ] & input$iter > 1) {
 					   #a quick fix to set future values to TRUE
 					   #print(length(params$is_new_step))
 				       params$is_new_step[ -(1:input$iter)] <- TRUE
 					   
+					   params$wts_counter <- 0
+					   params$locs_counter <- 0
+
 					   #print(params$is_new_step)
 					   #reorder everything so that particles are printed in color order (i.e. in order of the mu_guesses
 	
-					    ord_mu <- order(params$mu_guess["orig",input$iter,])
+					   ord_mu <- order(params$mu_guess["orig",input$iter,])
 					
-					    future_steps <- (input$iter):(input$max_iter+1)
+					   future_steps <- (input$iter):(input$max_iter+1)
 					
 					    params$mu_guess[,future_steps ,] <- params$mu_guess[,future_steps ,ord_mu, drop=FALSE]
 					    params$vel_guess[,future_steps ,] <- params$vel_guess[,future_steps ,ord_mu, drop=FALSE]				   
@@ -225,7 +228,7 @@ server=shinyServer(function(input, output, session)
 					#density of particle velocities	
 					
 					output$densplot <- renderPlot({ 
-						if (input$iter >1) {
+						if (input$iter > 1) {
 							densplot(dpts=dens_pts, mu_guess=params$mu_guess["orig",input$iter,], norm_sds=sqrt(input$vel_var), known_mean=input$vel_mu,
                                 colors=params$resamp_colors["orig",input$iter,], ylims=ydens_range, xlims=xdens_range, before_after="before",
                                 sep_col=input$sep_col, npart=input$npart)
@@ -233,7 +236,7 @@ server=shinyServer(function(input, output, session)
 					})
 					
 										
-					if (params$is_new_step[ input$iter ] & input$iter >1) {			
+					if (params$is_new_step[ input$iter ] & input$iter > 1) {			
 					
 					#resample
 					#print(yt[input$iter+1,"true_loc"])
@@ -244,10 +247,10 @@ server=shinyServer(function(input, output, session)
 					
 					
 					#not sure why this happens
-					#params$wts[ input$iter, is.na(params$wts[input$iter,])] <- 1#1e-15
+					#params$wts[ input$iter, is.na(aparams$wts[input$iter,])] <- 1#1e-15
                     qwt <- quantile(x=params$wts[input$iter,], probs=0.85)
 					params$indices[input$iter,] <- low_var_sample(wts=params$wts[input$iter,], M=input$npart)
-				    if (! input$sep_col) { params$resamp_colors["orig",input$iter, params$wts[input$iter,] >qwt ] <- "red" }
+				    if (! input$sep_col) { params$resamp_colors["orig",input$iter, params$wts[input$iter,] > qwt ] <- "red" }
 					
 					}
 					
@@ -312,52 +315,51 @@ server=shinyServer(function(input, output, session)
 					
 						params$resamp_colors["resamp",input$iter,] <- params$resamp_colors["orig",input$iter, ord]
 							
-						
-						
-										#distribution of weights
-					# output$wt_dist <- renderPlot({
-						# if (input$iter >0) {
-					   # wt_dist(wts=params$wts[input$iter,,drop=FALSE], xlims=xdens_range, known_mean=input$vel_mu, mu_guess=params$mu_guess["orig", input$iter,], 
-                                # npart=input$npart, colors=params$resamp_colors["orig",input$iter,], sep_col=input$sep_col)
-					   # }
-					# })
 					
-					
-					#
-					
-					wts_counter <<- locs_counter <<- 0
 					
 					
 					output$wt_dist <- renderPlot({
-						if (input$iter >1) {
+						if (input$iter > 1) {
 							
+							ydens_range_wts <- c(0, max(params$wts[input$iter,])*1.2)
+
 							
 							if (params$is_new_step[ input$iter ]==FALSE & params$is_new_step[ input$iter+1 ]==TRUE) {
 						
-								wts_counter <<- wts_counter +1
+							
+								invalidateLater(millis=render_delay_step)
+								isolate(params$wts_counter <- min(input$npart, params$wts_counter + 1))
+							
+								#loop_plot(npart=input$npart, ii=params$wts_counter, iter=input$iter)
 								
-								if ( wts_counter >=1 & wts_counter< input$npart) { invalidateLater(millis=render_delay_step) }
 								
-									m <- wt_dist_loop(wts=params$wts[input$iter,,drop=FALSE], xlims=xdens_range, ylims=ydens_range, known_mean=input$vel_mu, mu_guess=params$mu_guess["orig", input$iter,], 
-											npart=input$npart, colors=params$resamp_colors["orig",input$iter,], sep_col=input$sep_col, index=params$indices[ input$iter, wts_counter])
-									m
-									#print(params$resamp_colors["orig",input$iter,jj])
-									#params$jj <- params$resamp_colors["orig",input$iter,jj]
-									
-									#m <- plot(runif(10), runif(10), xlim=xdens_range, ylim=xdens_range, pch=19, cex=2, col=wts_counter)
-									#m
+								
+								# while(params$wts_counter < input$npart) {
+									# print(params$wts_counter)
+									# params$wts_counter <- params$wts_counter + 1
+
+								
+									# if (params$wts_counter > 1) {
+										# print("pause")
+										# invalidateLater(millis=render_delay_step)
+									# }
+								# }
+								
+					
+								
+								wt_dist_loop(wts=params$wts[input$iter,,drop=FALSE], xlims=xdens_range, ylims=ydens_range_wts, known_mean=input$vel_mu, mu_guess=params$mu_guess["orig", input$iter,], 
+											npart=input$npart, colors=params$resamp_colors["orig",input$iter,], sep_col=input$sep_col, index=params$indices[ input$iter, params$wts_counter])
 									
 								
 							}
 							else {
-								 wt_dist(wts=params$wts[input$iter,,drop=FALSE], xlims=xdens_range, ylims=ydens_range, known_mean=input$vel_mu, mu_guess=params$mu_guess["orig", input$iter,], 
+								 wt_dist(wts=params$wts[input$iter,,drop=FALSE], xlims=xdens_range, ylims=ydens_range_wts, known_mean=input$vel_mu, mu_guess=params$mu_guess["orig", input$iter,], 
 									npart=input$npart, colors=params$resamp_colors["orig",input$iter,], sep_col=input$sep_col)
 								
 							}
 						}	
 					})
 					
-					m <- NULL		
 						
 					output$pred_loc_resamp <- renderPlot({
 						if (input$iter > 0) {
@@ -369,19 +371,16 @@ server=shinyServer(function(input, output, session)
 						
 							
 							
-							if (params$is_new_step[ input$iter ]==FALSE & params$is_new_step[ input$iter+1 ]==TRUE) {
+							if (params$is_new_step[ input$iter ]==FALSE & params$is_new_step[ input$iter + 1 ]==TRUE) {
 								
-								locs_counter <<- locs_counter + 1
-								
-								if ( locs_counter >= 1 & locs_counter < input$npart) { invalidateLater(millis=render_delay_step) }
+								invalidateLater(millis=render_delay_step)
+								isolate(params$locs_counter <- min(input$npart, params$locs_counter + 1))
+							
+								pred_loc_loop(Ydist1=params$Ydist[,"resamp",input$iter,], wts=params$wts[input$iter, ,drop=FALSE], 
+														xlims=xrange, xticks=loc_axis, before_after="after", colors=params$resamp_colors["resamp",input$iter,], 
+														npart=input$npart, sep_col=input$sep_col, yt=yt[ input$iter:(input$iter+1),"X"], Yindex1=1:input$npart,
+														indices=params$indices[input$iter,], index=params$locs_counter)
 
-								
-									m <- pred_loc_loop(Ydist1=params$Ydist[,"resamp",input$iter,], wts=params$wts[input$iter, ,drop=FALSE], 
-													xlims=xrange, xticks=loc_axis, before_after="after", colors=params$resamp_colors["resamp",input$iter,], 
-													npart=input$npart, sep_col=input$sep_col, yt=yt[ input$iter:(input$iter+1),"X"], Yindex1=1:input$npart,
-													indices=params$indices[input$iter,], index=locs_counter)
-
-									m
 									
 							}
 							else {
@@ -437,7 +436,7 @@ server=shinyServer(function(input, output, session)
 					})
 						
 					output$loc_hist <- renderPlot({
-						if (input$iter >1) {
+						if (input$iter > 1) {
 					    #location_history(Ydist=params$Ydist[,"resamp_hist",,], xticks=loc_axis, xlims=xrange, iter=input$iter, 
 					    #                 npart=input$npart,colors=params$resamp_colors["resamp",,], yt=yt)
 						

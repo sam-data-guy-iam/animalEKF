@@ -27,7 +27,10 @@ ui=shinyUI(fluidPage(
 server=shinyServer(function(input, output, session) 
 {
 #https://gist.github.com/wch/5436415/
-   mar_prev <- par()$mar
+
+   old_pars <- par(mfrow=par()$mfrow, mfcol=par()$mfcol, mar=par()$mar)
+   on.exit(expr=par(old_pars))	
+   
    par(mar=rep(0,4), mfcol=c(1,1))
    
    	#distance in latitude
@@ -73,6 +76,10 @@ server=shinyServer(function(input, output, session)
 		#load the shark_data_longlat
 		#utils::data(shark_data_longlat, package="animalEKF")
 		
+		bc_longlat_map <- NULL
+		bc_longlat_map_img_ras <- NULL
+		shark_data_longlat <- NULL
+		
 		utils::data("bc_longlat_map", "bc_longlat_map_img_ras", "shark_data_longlat", package="animalEKF")
 		
 		#load(system.file("bc_longlat_map_img_ras.rda", package="animalEKF"))
@@ -107,7 +114,7 @@ server=shinyServer(function(input, output, session)
                     legend("bottomleft", pt.cex=c(2.5,2.5,3.5), pt.lwd=c(3,3,2), col=c(1,1,2), pch=c(19,1,1), 
 							legend=c("foraging (0)","transiting (1)","shark in\nspatial neighborhood"), bty="n")
 	    plot_back <- grDevices::recordPlot()
-		 
+		
 		 
 		legend_coords <- c(bbox["lon",1] + 0.8*(bbox["lon",2]-bbox["lon",1]), 	bbox["lat",2]-0.25*(bbox["lat",2]-bbox["lat",1]))
         spat_radius_deg <- feet2deg(input$spat_radius) 	
@@ -123,11 +130,8 @@ server=shinyServer(function(input, output, session)
 		
 			
 		
-		#print(shark_names)
-       
-	 
 			output$plots <- renderPlot({
-      
+				
 				grDevices::replayPlot(plot_back)
 				
 				dtmp <- d[ d[,"t_intervals"] == input$iter,,drop=FALSE]
@@ -140,11 +144,10 @@ server=shinyServer(function(input, output, session)
 				text(x=legend_coords[1], y=legend_coords[2], labels=date_labels[ input$iter ], cex=1.3)
 				legend_feet()
 				#text(x=-118.04, y=33.7, labels=paste(curr_sharks, collapse="and"), cex=1.3)
-		
-				if( nsharks_curr >0) {
+				
+				if( nsharks_curr > 0) {
 				
 					points(dtmp[,c("lon","lat")], pch=dtmp[,"pch"], lwd=3, cex=2.5, col=shark_col[ curr_sharks ]) 
-         
 					#plot neighborhoods
 					if (nsharks_curr>1 & spat_radius_deg>0) {
 				
@@ -153,16 +156,14 @@ server=shinyServer(function(input, output, session)
 								
 				
 						for (shk in curr_sharks) {
-								#d_to_others <- dist_LL(matrix(d[input$iter, c("lon","lat"), shk], ncol=2), otherXY=matrix(d[input$iter, c("lon","lat"), curr_sharks[ curr_sharks != shk ]], ncol=2))
+							
 								
+							d_to_others <- dist_LL(center=dtmp[dtmp[,"tag"]== shk, c("lon","lat")], otherXY=dtmp[dtmp[,"tag"] != shk , c("lon","lat"), drop=FALSE])
 								
-								
-								d_to_others <- dist_LL(center=dtmp[dtmp[,"tag"]== shk, c("lon","lat")], otherXY=dtmp[dtmp[,"tag"] != shk , c("lon","lat"), drop=FALSE])
-								
-								neibs <- c(curr_sharks[ curr_sharks != shk ])[ d_to_others <= spat_radius_deg ] 
+							neibs <- c(curr_sharks[ curr_sharks != shk ])[ d_to_others <= spat_radius_deg ] 
 						 
-								#there are neighbors and at least one is close
-								if (length(neibs)>0) {  neib_plot_colors[ c(shk, neibs) ] <- 2 }
+							#there are neighbors and at least one is close
+							if (length(neibs)>0) {  neib_plot_colors[ c(shk, neibs) ] <- 2 }
 						
 						}	
 						
@@ -178,7 +179,7 @@ server=shinyServer(function(input, output, session)
 		})#end of observe event
 	    
 	  
-	par(mar=mar_prev)
+
 	})#end of server
 	
  

@@ -21,7 +21,10 @@ fix_data_EKF_1d_interp_joint <- function(env_obj) {
 	
 	third_steps <- sapply(observed_intervals, function(x) x[3])
 
-	if (! any(third_steps <= env_obj$max_int_wo_obs)) {
+	if (is.null(env_obj$max_int_wo_obs)) {
+		env_obj$max_int_wo_obs <- Inf
+	}
+	else if (! any(third_steps <= env_obj$max_int_wo_obs)) {
 		print(observed_intervals)
 		stop(paste("No observed animals have consecutive observed intervals separated by less than", env_obj$max_int_wo_obs, "intervals.\nNeed to increase max_int_wo_obs to at least", min(third_steps))) 
 	}
@@ -38,10 +41,10 @@ fix_data_EKF_1d_interp_joint <- function(env_obj) {
 	env_obj$t_reg <- seq(from= env_obj$first_time, by=env_obj$reg_dt, length.out=env_obj$maxStep)
 	#do this so the first interval captures the first observation at t=0
 	env_obj$t_reg[ 1 ] <- env_obj$t_reg[ 1 ]-.Machine$double.eps
+	
 	env_obj$N <- length(env_obj$t_reg) 
 
-	env_obj$max_int_wo_obs <- ifelse(is.null(env_obj$max_int_wo_obs), env_obj$N+1, env_obj$max_int_wo_obs) 	
-
+	env_obj$max_int_wo_obs <- min(env_obj$N+1, env_obj$max_int_wo_obs)
 
 	env_obj$d <- env_obj$d[ env_obj$d$date_as_sec <= env_obj$t_reg[ env_obj$N ],]
 
@@ -182,7 +185,7 @@ fix_data_EKF_1d_interp_joint <- function(env_obj) {
 	if (env_obj$compare_with_known) {
 		nust <- length(unique(env_obj$known_regular_step_ds$state.guess2, na.rm=TRUE))
 		
-		true_diffs <- unique(diff(env_obj$known_regular_step_ds$date_as_sec[ ! is.na(env_obj$known_regular_step_ds$date_as_sec)]))
+		true_diffs <- unique(diff(unique(env_obj$known_regular_step_ds$date_as_sec[ ! is.na(env_obj$known_regular_step_ds$date_as_sec)])))
 		if (length(true_diffs) > 1) {
 			stop(paste("known_regular_step_ds has multiple observed time gaps:", paste(true_diffs, collapse=", ")))	
 		}

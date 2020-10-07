@@ -1,9 +1,9 @@
 EKF_interp_joint <- function(area_map, d, 
 							 npart=100, sigma_pars, tau_pars, 
-							 mu0_pars=list(alpha=c(-4.5 ,-2), beta=c(0,0)), V0_pars=list(c(0.25, 0.25), c(0.25, 0.25)), 
+							 mu0_pars=list(alpha=c(-4.5 ,-2), beta=c(0,0)), V0_pars=list(alpha=c(0.25, 0.25), beta=c(0.25, 0.25)), 
 							 Errvar0=rep(list(diag(2)), 2), Errvar_df=c(20, 20), Particle_errvar0, Particle_err_df=20,							 
 							 dirichlet_init=c(9,2,2,7), logvelocity_truncate=c(-10, 15), maxStep=NULL, 
-							 delaysample=1, state_favor=c(1,1.5), nstates=2,
+							 delaysample=1, state_favor=c(1,1), nstates=2,
 							 centroids=matrix(c(0,0), ncol=2), truncate_to_map=TRUE, enforce_full_line_in_map=TRUE, do_trunc_adjust=TRUE, 
 							 lowvarsample=TRUE, time_radius=60*30, spat_radius=300, min_num_neibs=10,
 							 interact=TRUE, interact_pars=list(mu0=0, precision0=2, known_precision=2), neff_sample=1,  time_dep_trans=FALSE, time_dep_trans_init=dirichlet_init,
@@ -12,7 +12,10 @@ EKF_interp_joint <- function(area_map, d,
 							 update_eachstep=FALSE, update_params_for_obs_only=FALSE, output_plot=TRUE, loc_pred_plot_conf=0.5, output_dir=getwd(),
 							 pdf_prefix="EKF_2D") {
 
-
+	
+	old_pars <- par(mfrow=par()$mfrow, mfcol=par()$mfcol, las=par()$las)
+	on.exit(expr=par(old_pars))
+	
 	#current list of inputs
     func_args <- as.list(environment())
 	#environment that will contain all relevant objects
@@ -29,7 +32,6 @@ EKF_interp_joint <- function(area_map, d,
 	myenv$states <- as.numeric(myenv$d$state.guess2)
 
 	myenv$next_states <- as.numeric(myenv$d$next.guess2)
-	print(myenv$states[ 1:10 ])
 	myenv$npart <- max(2, myenv$npart)
 	myenv$bbox <- attributes(myenv$area_map)$bbox
 	myenv$spcoords <- area_map@polygons[[1]]@Polygons[[1]]@coords

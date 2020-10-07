@@ -27,12 +27,11 @@ densplot <- function(dpts, mu_guess, norm_sds, known_mean, colors, ylims,
                      xlims, before_after="before", iter,
                      var_name="velocity", sep_col=TRUE, npart)  {
 
-
-	par(mar=c(4,4,2,2)+0.1)
+	
 	plot(x=dpts, y=dnorm(x=dpts, mean=known_mean, sd=norm_sds),  yaxs="i",
 	     col=1, lwd=4, las=1, type="l", ylim=ylims, xlim=xlims, ylab="Density",
              main=paste("Particle distributions of", var_name), cex.main=1.1,
-             xlab=paste("Particle guess of mean", var_name))
+             xlab=paste("Particle guess of mean", var_name), mar=c(4,4,2,2)+0.1)
 					abline(h=0, lwd=0.5)
 					abline(v=known_mean, lty="dotted", col=1, lwd=3)
 
@@ -65,7 +64,8 @@ densplot_twostate <- function(dpts, mu_guess, norm_sds, known_mean,
                               npart, var_name="velocity") {
 
 
-
+	old_pars <- par(mar=par()$mar, mfrow=par()$mfrow, oma=par()$oma)
+	on.exit(expr=par(old_pars))
 	
 	par(mfrow=c(2,1), mar=c(3,4,2,2)+0.1 ,oma = c(0, 0, 2, 0))
 
@@ -112,86 +112,11 @@ densplot_twostate <- function(dpts, mu_guess, norm_sds, known_mean,
 				
 				
 				
-				
-				
-				
-# densplot_twostate <- function(dpts, mu_guess, norm_sds, known_mean,
-                              # colors, ylims, xlims, before_after="before", sep_col=TRUE,
-                              # npart, iter, main_title=paste("Particles' distributions of",
-                                                            # var_name,"by behavior, at t="),
-                              # var_name="velocity") {
 
-
-
-	# ylims <- c(0, round(ylims[ 2 ], digits=1))
-
-	# y_axis <- seq(0, ylims[ 2], length.out=4)
-	# y_axis_labs <- sprintf("%.2f",y_axis)
-
-    # plot(x=dpts, y=dnorm(x=dpts, mean=known_mean[ 1 ], sd=norm_sds)+ylims[2],
-         # col=1, lwd=3, las=1, type="l", ylim=c(ylims[1], 2*ylims[2]), xlim=xlims,
-         # ylab="Density",  main=paste(main_title,iter,"\n",before_after," resampling",
-                                     # ifelse(sep_col,""," (best 15% are red)"),sep="", cex.main=1),
-         # xlab=paste("Particle guess of mean", var_name), yaxt="n")
-
-    # axis(side=2, at=y_axis, labels=y_axis_labs, las=1, cex.axis=0.67)
-    # axis(side=4, at=y_axis + ylims[ 2 ], labels=y_axis_labs, las=1, cex.axis=0.67)
-
-
-    # rug_multicolor(x=mu_guess[1,], ticksize=-0.05, col_vec=colors, plot_side=3)
-    # rug_multicolor(x=mu_guess[2,], ticksize=-0.05, col_vec=colors, plot_side=1)
-
-
-    # lines(x=dpts, y=dnorm(x=dpts, mean=known_mean[ 2 ], sd=norm_sds), lwd=3,
-          # col=1, type="l", lty=2)
-	# #abline(v=known_mean, lty="dotted", col=1, lwd=3)
-    # segments(y0=c(ylims[ 2 ], 0), y1=c(par()$usr[ 4 ], ylims[ 2 ]),
-             # x0=known_mean, x1=known_mean, lty=2)
-
-    # abline(h=ylims[2])
-
-    # abline(h=0, lwd=0.5)
-
-    # for (kk in 1:2) {
-	# for (nn in 1:npart) {
-            # lines(x=dpts, y=dnorm(x=dpts, mean=mu_guess[ kk, nn ],
-                                  # sd=norm_sds)+ifelse(kk==1, ylims[ 2 ],0),
-		# col=colors[ nn ], lwd=2, type="l", lty=kk)
-            # }
-    # }
-
-
-
-
-
-    # if (sep_col) {
-        # legend("topright", col=c("black","green"), lwd=c(2,1), lty=c(1,1),
-	       # legend=c(paste("true",var_name,"(type 1)"),"particles (type 1)"),
-               # ncol=1, cex=0.7)
-
-        # legend(x=par()$usr[ 1 ], y=ylims[ 2 ], col=c("black","green"), lwd=c(2,1),
-               # lty=c(2,2), legend=c(paste("true",var_name,"(type 2)"),"particles (type 2)"),
-               # ncol=1, cex=0.7)
-  # }
-					# else {
-
-						# legend("topright", col=c("black","lightgray","red"), lwd=c(2,1,1), lty=c(1,1,1),
-						       # legend=c(paste("true",var_name,"(type 1)"),"particles (type 1)", "particles (type 1, closest %15"),
-							   # cex=0.65)
-
-					    # legend(x=par()$usr[ 1 ], y=ylims[ 2 ], col=c("black","lightgray","red"), lwd=c(2,1,1), lty=c(2,2,2),
-						       # legend=c(paste("true",var_name,"(type 2)"),"particles (type 2)", "particles (type 2, closest %15"),
-							   # cex=0.65)
-
-						  # }
-
-
-
-				# }
 
 
 #predicted locations before/after resampling
-pred_loc <- function(Ydist1, wts, xlims, xticks, before_after="before", colors, npart, sep_col, yt, indices, Ydist2=NULL, Yindex1, Yindex2) {
+pred_loc <- function(Ydist1, wts, xlims, xticks, before_after="before", colors, npart, sep_col, yt, indices, Ydist2=NULL, Yindex1, Yindex2=c()) {
 
 					#Ydist1=params$Ydist[,"orig",input$iter,], wts=params$wts[input$iter,,], xlims=xrange, xticks=loc_axis, before_after="before",
                     #colors=params$resamp_colors["orig",input$iter,], npart=input$npart, sep_col=input$sep_col,
@@ -200,7 +125,8 @@ pred_loc <- function(Ydist1, wts, xlims, xticks, before_after="before", colors, 
 					#par(mgp=c(2, 1, 0))
                     plot(y=-100, x=-10, ylim=c(-.15*npart, npart*1.1), xlim=xlims , las=1,
 						 main=paste("Prediction of next location",before_after,"resampling"),
-							 ylab="Particle", xlab="Location", xaxt="n", yaxt="n", mgp=c(2,1,0))
+							 ylab="Particle", xlab="Location", xaxt="n", yaxt="n")
+							 #, mgp=c(2,1,0)
 						axis(side=1, at=xticks, labels=xticks)
 						cs <- colSums(wts)
 
@@ -222,13 +148,15 @@ pred_loc <- function(Ydist1, wts, xlims, xticks, before_after="before", colors, 
 						#	points(x=prev_locs[,ii], y=1:npart)
 						#}
 
-						if (! is.null(Ydist2)) {
+						if (! is.null(Ydist2) & length(Yindex2) > 0) {
 
 						  wts2_hi <- wts[2,] >= qwt
 
 						  #wts2_hi <- wts[2,indices] > qwt
 						  #wts2_hi <- wts[2,Yindex2] > qwt
-						   border2 <- colors[ 1:length(Yindex2) ]
+						   #border2 <- colors[ 1:length(Yindex2) ]
+						   	border2 <- rep(NA,length(Yindex2))
+
 						   border2[ wts2_hi ] <- "black"
 						   
 						    rect(xleft=Ydist2["MuY",Yindex2]-1.96*sqrt(Ydist2["VarY",Yindex2]),
@@ -291,20 +219,20 @@ pred_loc <- function(Ydist1, wts, xlims, xticks, before_after="before", colors, 
 							if (sep_col==FALSE) {
 								c1 <- c("lightgrey","lightgrey","black","black","black")
 								bg1 <- c(NA,NA, "red", NA, NA)
-								pch1 <- c(15,4,22,19,NA)
+								pch1 <- c(15,7,22,19,NA)
 								lwd1 <- c(NA,NA,NA,NA,1)
 							}
 							else {
 								c1 <- c("green","green","black","black","black")
 								bg1 <- rep(NA, 5)
-								pch1 <- c(15,4,0,19,NA)
+								pch1 <- c(15,7,0,19,NA)
 								lwd1 <- c(NA,NA,1.5,NA,1)
 							}	
 						
 						
 						
 						legend("bottomleft", lty=c(NA,NA,NA,NA,"dashed"),legend=c("Type 1 95% interval","Type 2 95% interval","Best 15%", "Prediction","Observation"), pch=pch1,
-						       col=c1, lwd=lwd1, pt.lwd=c(3,3,NA,NA), pt.cex=c(1,1,1,1,0), ncol=2, cex=0.6, pt.bg=bg1)
+						       col=c1, lwd=lwd1, pt.lwd=c(3,1.5,NA,NA), pt.cex=c(1,1,1,1,0), ncol=2, cex=0.6, pt.bg=bg1)
 		                      }
     	    	    }
 
@@ -323,7 +251,8 @@ pred_loc_loop <- function(Ydist1, wts, xlims, xticks, before_after="before", col
 
                     plot(y=-100, x=-10, ylim=c(-.15*npart, npart*1.1), xlim=xlims , las=1,
 						 main=paste("Prediction of next location",before_after,"resampling"),
-							 ylab="Particle", xlab="Location", xaxt="n", yaxt="n", mgp=c(2,1,0))
+							 ylab="Particle", xlab="Location", xaxt="n", yaxt="n")
+						#, mgp=c(2,1,0)
 						axis(side=1, at=xticks, labels=xticks)
 						cs <- colSums(wts)
 
@@ -416,20 +345,20 @@ pred_loc_loop <- function(Ydist1, wts, xlims, xticks, before_after="before", col
 							if (sep_col==FALSE) {
 								c1 <- c("lightgrey","lightgrey","black","black","black")
 								bg1 <- c(NA,NA, "red", NA, NA)
-								pch1 <- c(15,4,22,19,NA)
+								pch1 <- c(15,7,22,19,NA)
 								lwd1 <- c(NA,NA,NA,NA,1)
 							}
 							else {
 								c1 <- c("green","green","black","black","black")
 								bg1 <- rep(NA, 5)
-								pch1 <- c(15,4,0,19,NA)
+								pch1 <- c(15,7,0,19,NA)
 								lwd1 <- c(NA,NA,1.5,NA,1)
 							}	
 						
 						
 						
 						legend("bottomleft", lty=c(NA,NA,NA,NA,"dashed"),legend=c("Type 1 95% interval","Type 2 95% interval","Best 15%", "Prediction","Observation"), pch=pch1,
-						       col=c1, lwd=lwd1, pt.lwd=c(3,3,NA,NA), pt.cex=c(1,1,1,1,0), ncol=2, cex=0.6, pt.bg=bg1)
+						       col=c1, lwd=lwd1, pt.lwd=c(3,1.5,NA,NA), pt.cex=c(1,1,1,1,0), ncol=2, cex=0.6, pt.bg=bg1)
 		                      }
 
 
@@ -461,15 +390,16 @@ pred_loc_2D <- function(yt, bds, start_pt, MuY,	SigY, conf=0.5, wts, before_afte
 
 					wts1_hi <- wts[1,] >= qwt
 					wts2_hi <- wts[2,] >= qwt
-
-					#points(start_pt)
+	
 
 					if (is.null(states)) {
 						for (kk in 1:2) {
+							
 							points(t(MuY[,kk,]), col=colors, pch=c(0,6)[ kk ], cex=0.5)
 							segments(x0=start_pt[1,], y0=start_pt[2,], x1=MuY[1,kk,], y1=MuY[2,kk,], col=colors, lty=kk)
 
 							for (nn in 1:npart) {
+								
 								lines(ellipse::ellipse(x=SigY[,,kk,nn], centre=MuY[,kk,nn], level=conf), lwd=0.1, col=colors[ nn ], type="l", lty=kk)
 
 							}
@@ -478,17 +408,21 @@ pred_loc_2D <- function(yt, bds, start_pt, MuY,	SigY, conf=0.5, wts, before_afte
 					else {
 
 						#use this if doing replay back
-
+						
+			
 						points(MuY, col=colors, pch=c(0,6)[ states ], cex=0.5)
-						segments(x0=start_pt[1,], y0=start_pt[2,], x1=MuY[1,], y1=MuY[2,], col=colors, lty=states)
+						
 						for (nn in 1:npart) {
-
-								lines(ellipse::ellipse(x=SigY[,,nn], centre=MuY[,nn], level=conf), lwd=0.1, col=colors[ nn ], type="l", lty=states[ nn ])
+		
+							segments(x0=start_pt[1,nn], y0=start_pt[2,nn], x1=MuY[1,nn], y1=MuY[2,nn], col=colors, lty=states[ nn ])
+												
+							lines(ellipse::ellipse(x=SigY[,,nn], centre=MuY[,nn], level=conf), lwd=0.1, col=colors[ nn ], type="l", lty=states[ nn ])
 
 						}
 
 					}
-						legend("topright", pch=c(19, NA, NA), lty=c(1,1,2), pt.cex=c(1.5, NA, NA), lwd=c(1, 0.5, 0.5), col=c("black", "green","green"),
+					
+					legend("topright", pch=c(19, NA, NA), lty=c(1,1,2), pt.cex=c(1.5, NA, NA), lwd=c(1, 0.5, 0.5), col=c("black", "green","green"),
 							legend=c("observed path", paste(round(conf*100),"% posterior ellipse, type ", 1:2, sep="")), ncol=1, cex=0.8)
 
 
@@ -564,15 +498,16 @@ pred_loc_dens_2D <- function(yt, bds, locs)  {
 					else { locs <- as.data.frame(plyr::adply(locs, .margins=c(2,3))[,c(3,4)]) }
 					colnames(locs) <- c("X","Y")
 
+
 					#https://dannagifford.wordpress.com/2017/10/26/how-to-make-ggplot-look-like-base-r-graphics/
 					#http://ggplot2.tidyverse.org/reference/theme.html
 					#do this to pass check
 					#X <- Y <- NULL
 
-                    g <- ggplot2::ggplot(data=locs,  aes_string(x="X", y="Y")) + theme_bw()
+                    g <- ggplot(data=locs, aes_string(x="X", y="Y")) + theme_bw()
 
 					g <- g + scale_x_continuous(limits=bds[,"X"]) + scale_y_continuous(limits=bds[,"Y"]) + theme(axis.ticks.length=unit(.25, "cm"))
-					g <- g + stat_density2d(aes(fill=..density.., ), geom="tile", contour=FALSE)+ scale_fill_gradient(low="white", high="black") + guides(fill=FALSE)
+					g <- g + stat_density2d(aes_string(fill="..density.."), geom="tile", contour=FALSE)+ scale_fill_gradient(low="white", high="black") + guides(fill=FALSE)
 					g <- g + geom_path(data=make_segments(as.data.frame(yt)),  aes_string(x="X", y="Y"), colour="red", lwd=1.5) + theme(legend.position="bottom", legend.key.width=unit(1.5,"cm"))
 					g <- g + ggtitle("Density of particle and true unobserved (red) locations")
 					g <- g + theme(plot.title=element_text(size=14.25, face="bold", hjust=0.5, margin=margin(b=20, t=20)), axis.text=element_text(size=12))
@@ -584,6 +519,7 @@ pred_loc_dens_2D <- function(yt, bds, locs)  {
 								   axis.text.x=element_text(margin=margin(l=10, r=10, t=10, b=10)),
 								   axis.text.y=element_text(margin=margin(l=10, r=10, t=10, b=10)))
 
+
 					theme_set(theme_bw())
 					theme_update(
 						panel.grid.major = element_blank(),
@@ -591,7 +527,6 @@ pred_loc_dens_2D <- function(yt, bds, locs)  {
 						strip.background = element_blank()
 						)
 					g
-
     	    	}
 
 
@@ -682,13 +617,11 @@ wt_dist <- function(wts, xlims, ylims, known_mean, mu_guess, npart, colors, sep_
 
 wt_dist_twostate <- function(wts, mu_guess, xlims, ylims, known_mean, npart, colors, sep_col=TRUE, iter, behavior, var_name) {
 
-					
+					old_pars <- par(mar=par()$mar, mfrow=par()$mfrow, oma=par()$oma)
+					on.exit(expr=par(old_pars))
 				
 					par(mfrow=c(2,1), mar=c(3,4,2,2)+0.1 ,oma = c(0, 0, 2, 0))
 
-
-
-					
 
 					plot(x=-5,y=-10, xlim=xlims, ylim=ylims, yaxs="i", xlab="", 
 						ylab="Density", main=expression("Overall weight"==~w[t]^{"(n)"}),las=1, cex.main=1.1, cex.axis=0.7)
@@ -698,12 +631,10 @@ wt_dist_twostate <- function(wts, mu_guess, xlims, ylims, known_mean, npart, col
 					if (sep_col==FALSE) {
 						legend("topleft", col=c("lightgray", "red"), pch=19, legend=c("particle","best 15%"), lwd=3, ncol=2, cex=0.7)
 					}
-					
-					
+
 					#plot unconditional weights
 					segments(x0=mu_guess[behavior,], x1=mu_guess[behavior,], y0=rep(0, npart), y1= colSums(wts), col=colors, lwd=3, lty=1)
 					points(x=mu_guess[behavior,], y= colSums(wts), col=colors, pch=19, cex=1.5)
-
 
 					#behavior-conditional
 
@@ -729,6 +660,7 @@ wt_dist_twostate <- function(wts, mu_guess, xlims, ylims, known_mean, npart, col
 
 						segments(x0=mu_guess[kk,], x1=mu_guess[kk,], y0=rep(0, npart), y1=wts[kk,], col=colors, lwd=3, lty=c(1,3)[ kk ])
 						points(x=mu_guess[kk,], y=wts[kk,], col=colors, pch=c(15,17)[ kk ], cex=1.5)
+
 					}
 
 					#legend(x=par()$usr[ 1 ], y=ylims[ 2 ], pch=c(15,17), col=rep("blue",2), legend=c("type 1", "type 2"), pt.cex=1.5, cex=0.8)
@@ -737,7 +669,6 @@ wt_dist_twostate <- function(wts, mu_guess, xlims, ylims, known_mean, npart, col
 
 					
 					mtext(text="Particle resampling weights", outer=TRUE, side=3, cex=1.25, font=2)
-
 
 				}
 
@@ -751,8 +682,7 @@ wt_dist_loop <- function(wts, xlims, ylims, known_mean, mu_guess, npart, colors,
 						index <-  (c(1:npart) %in% index)
 						
 						nbold <- sum(index)
-						#print(index)
-						#print(nbold)
+
 						wts_lwd <- rep(3, npart)
 						head_cex <- rep(1.5, npart)
 						wts_lwd[ index ] <- 7
@@ -763,27 +693,16 @@ wt_dist_loop <- function(wts, xlims, ylims, known_mean, mu_guess, npart, colors,
 										 main="Resampling weights from predicting next location", cex.main=1.1)
 						abline(v=known_mean, lty=2)
 						abline(h=0, lwd=0.5)
-
-						#if (nbold < npart) {
-							# print("false")
-							# print(mu_guess[ ! index ])
-							# print(rep(0, npart-nbold))
-							# print(wts[ ! index ])
-							segments(x0=mu_guess[ ! index ], x1=mu_guess[ ! index ], y0=rep(0, npart-nbold), y1=wts[ ! index ], col=colors[ ! index ], lwd=wts_lwd[ ! index ])
-							points(x=mu_guess[ ! index ], y=wts[ ! index ], col=colors[ ! index ], pch=19, cex=head_cex[ ! index ])
-						#}
-						#if (nbold >0) {
-							# print("true")
-							# print(mu_guess[ index ])
-							# print(rep(0, nbold))
-							# print(wts[ index ])
-							segments(x0=mu_guess[ index ], x1=mu_guess[ index ], y0=rep(0, nbold), y1=wts[ index ], col=colors[ index ], lwd=wts_lwd[ index ])
-							points(x=mu_guess[ index ], y=wts[ index ], col=colors[ index ], pch=19, cex=head_cex[ index ])
-						#}
-						
-							if (sep_col==FALSE) { 
-								legend("topright", lwd=2, lty=1, pch=19, col=c("red", "lightgray"), legend=c("best 15%","others"))
-							}
+				
+						segments(x0=mu_guess[ ! index ], x1=mu_guess[ ! index ], y0=rep(0, npart-nbold), y1=wts[ ! index ], col=colors[ ! index ], lwd=wts_lwd[ ! index ])
+						points(x=mu_guess[ ! index ], y=wts[ ! index ], col=colors[ ! index ], pch=19, cex=head_cex[ ! index ])
+		
+						segments(x0=mu_guess[ index ], x1=mu_guess[ index ], y0=rep(0, nbold), y1=wts[ index ], col=colors[ index ], lwd=wts_lwd[ index ])
+						points(x=mu_guess[ index ], y=wts[ index ], col=colors[ index ], pch=19, cex=head_cex[ index ])
+			
+						if (sep_col==FALSE) { 
+							legend("topright", lwd=2, lty=1, pch=19, col=c("red", "lightgray"), legend=c("best 15%","others"))
+						}
 
 						rug_multicolor(x=mu_guess, ticksize=-0.04, col_vec=colors)
 
@@ -792,11 +711,10 @@ wt_dist_loop <- function(wts, xlims, ylims, known_mean, mu_guess, npart, colors,
 
 wt_dist_twostate_loop <- function(wts, mu_guess, xlims, ylims, known_mean, npart, colors, sep_col=TRUE, iter, behavior, index=1, var_name) {
 
+					old_pars <- par(mar=par()$mar, mfrow=par()$mfrow, oma=par()$oma)
+					on.exit(expr=par(old_pars))
 					
-				
-					par(mfrow=c(2,1), mar=c(3,4,2,2)+0.1 ,oma = c(0, 0, 2, 0))
-
-
+					par(mfrow=c(2,1), mar=c(3,4,2,2)+0.1, oma = c(0, 0, 2, 0))
 
 					wts_lwd <- matrix(3, ncol=2, nrow=npart)
 					head_cex <- matrix(1.5, ncol=2, nrow=npart)
@@ -808,7 +726,9 @@ wt_dist_twostate_loop <- function(wts, mu_guess, xlims, ylims, known_mean, npart
 					nbold <- sum(index)
 			
 					
-					likely_behavior <- apply(wts, 2, function(x) random_which(condition=c(x== max(x))))
+					#likely_behavior <- apply(wts, 2, function(x) random_which(condition=c(x== max(x))))
+					likely_behavior <- apply(wts, 2, function(x) which(x== max(x))[1])
+
 
 					x_overall <- mu_guess[ cbind(likely_behavior, 1:npart) ]
 
@@ -819,7 +739,6 @@ wt_dist_twostate_loop <- function(wts, mu_guess, xlims, ylims, known_mean, npart
 					if (sep_col==FALSE) {
 						legend("topleft", col=c("lightgray", "red"), pch=19, legend=c("particle","best 15%"), lwd=2, ncol=2, cex=0.7)
 					}
-
 					
 					#plot unconditional weights
 					segments(x0=x_overall, x1=x_overall, y0=rep(0, npart), y1= colSums(wts), col=colors, lwd=wts_lwd[,behavior], lty=1)
@@ -831,8 +750,8 @@ wt_dist_twostate_loop <- function(wts, mu_guess, xlims, ylims, known_mean, npart
 					plot(x=-5,y=-10, xlim=xlims, ylim=ylims, yaxs="i", xlab="", main=expression("Behavior-conditional weight"==~w["t|k"]^{"(n)"}),
 						ylab="Density",las=1, cex.main=1.1, cex.axis=0.7)
 					mtext(side=1, text=var_name, line=2)
-					
 					abline(v=known_mean)
+					
 					if (sep_col==FALSE) {
 						legend("topleft", col=c("lightgray", "red", "lightgray","lightgray"), legend=c("particle","best 15%"), lwd=2, ncol=2, cex=0.7,
 								pch=c(19, 19, 15, 17), pt.cex=1)
@@ -850,12 +769,10 @@ wt_dist_twostate_loop <- function(wts, mu_guess, xlims, ylims, known_mean, npart
 						points(x=mu_guess[kk,], y=wts[kk,], col=colors, pch=c(15,17)[ kk ], cex=head_cex[,kk])
 					}
 					#legend(x=par()$usr[ 1 ], y=ylims[ 2 ], pch=c(15,17), col=rep("blue",2), legend=c("type 1", "type 2"), pt.cex=1.5, cex=0.8)
-
 					rug_multicolor(x=mu_guess, ticksize=-0.05, col_vec=rep(colors,2), plot_side=1)
 
 					
 					mtext(text="Particle resampling weights", outer=TRUE, side=3, cex=1.25, font=2)
-
 				}
 
 
@@ -1080,13 +997,22 @@ location_history <- function(Ydist, xticks, xlims, iter, npart, colors, yt) {
                         }
 
 
-probability_trans <- function(true_probs, dir_params, npart, colors, ylims) {
+probability_trans <- function(true_probs, dir_params, npart, colors) {
 			
-                        bdens_pts <- seq(0,1,by=0.01)
-						par(mfrow=c(2,1), mar=c(3,4,2,2)+0.1 ,oma = c(0, 0, 2, 0))
+                        old_pars <- par(mar=par()$mar, mfrow=par()$mfrow, oma=par()$oma)
+						on.exit(expr=par(old_pars))
+						par(mfrow=c(2,1), mar=c(3,4,2,2)+0.1, oma = c(0, 0, 2, 0))
 						#1 to 2 
-	
-
+						bdens_pts <- seq(0,1,by=0.01)
+						
+						
+						trans_dens_modes <- (dir_params[c("a12","a21"),]-1)/(dir_params[c("a12","a21"),] + dir_params[c("a11","a22"),] -2)
+											
+		
+						trans_dens_mode_dens <- dbeta(x=trans_dens_modes, shape1=dir_params[c("a12","a21"),], shape2=dir_params[c("a11","a22"),])
+						ylims <- c(0, 1.1*max(trans_dens_mode_dens, na.rm=TRUE))
+						
+						
 						plot(x=-5, y=-5, xlim=c(0,1), ylim=ylims, xaxs="i", yaxs="i", ylab="Density", xlab="",						
 							main=expression("Pr(1"%->%"2)"), cex.main=1.1, las=1, cex.axis=0.7)
 						mtext(side=1, text="Probability", line=2)
@@ -1237,5 +1163,6 @@ location_history_v2 <- function(omega, xticks, xlims, iter, npart, yt, colors) {
                         #}
 					}
 
+	
 
 

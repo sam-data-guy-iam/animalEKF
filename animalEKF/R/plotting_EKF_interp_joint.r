@@ -20,7 +20,9 @@ plotting_EKF_interp_joint <- function(env_obj) {
 	
 	half <- ceiling(env_obj$N/2)
 
-
+	old_pars <- par(mfrow=par()$mfrow, mfcol=par()$mfcol, las=par()$las)
+	on.exit(expr=par(old_pars))
+	
 	par(mfrow=c(ifelse(env_obj$compare_with_known,2,3),1), las=1)
 
 	
@@ -50,7 +52,7 @@ plotting_EKF_interp_joint <- function(env_obj) {
 	
 	sp::plot(env_obj$area_map, xlim=obs_x_range, ylim=obs_y_range, main=obs_title, asp=1, xlab="X", ylab="Y", las=0, axes=TRUE)
 	
-	if (env_obj$nregions > 1 ) { plot.deldir(vortess, wlines="tess", cex=0, add=TRUE) }
+	if (env_obj$nregions > 1 ) { deldir::plot.deldir(vortess, wlines="tess", cex=0, add=TRUE) }
 	text(env_obj$centroids[,1,drop=FALSE], env_obj$centroids[,2,drop=FALSE], labels=1:nrow(env_obj$centroids))
 	
 	for (ss in 1:env_obj$nsharks) {
@@ -425,7 +427,7 @@ plotting_EKF_interp_joint <- function(env_obj) {
 			env_obj$error_smoothed_true_quantiles <- env_obj$error_final_true_quantiles 
 		}
 
-
+		
 		for (s in env_obj$shark_names) {
 			
 			env_obj$error_final_true_allpart[env_obj$shark_intervals[[ s ]],,s] <- 0
@@ -436,10 +438,10 @@ plotting_EKF_interp_joint <- function(env_obj) {
 			true_shark_ds <- env_obj$known_regular_step_ds[env_obj$known_regular_step_ds$tag == s,]
 			true_shark_ds <- true_shark_ds[true_shark_ds$date_as_sec >= obs_d_time_range[1] & true_shark_ds$date_as_sec <= obs_d_time_range[2],]
 			
-			shark_intervals_to_use <- env_obj$shark_valid_steps[[ s ]][ env_obj$shark_valid_steps[[ s ]] %in% true_shark_ds$t_intervals]
-			
+			shark_intervals_to_use <- env_obj$shark_valid_steps[[ s ]][ env_obj$shark_valid_steps[[ s ]] %in% true_shark_ds$t_intervals[true_shark_ds$t_intervals < env_obj$N]]
+
 			for (i in shark_intervals_to_use) {
-				
+
 				ids <- which(true_shark_ds$t_intervals==i)
 				# if it's the first interval, there will be two
 				ids <- ids[length(ids)]
@@ -473,7 +475,10 @@ plotting_EKF_interp_joint <- function(env_obj) {
 				else {
 					euc_pred <- env_obj$h(mk=c(obs_xy[1,], log_safe(obs_dist/obs_timediff), obs_bear), dtprev=(env_obj$t_reg[i+1] - d_of_shark$date_as_sec[nearby_obs_indices[1]]))
 				}
-										
+				
+				colnames(euc_pred) <- c("X", "Y")
+				rownames(euc_pred) <- paste("N", i+1, sep="")
+				
 				env_obj$euclidean_estimate_true_from_obs[i+1,,"euclidean",s] <- euc_pred						
 				env_obj$error_euclidean_estimate_true_from_obs[i+1,"euclidean",s] <- sum(dist_func(center=euc_pred, otherXY=obs))
 
@@ -486,13 +491,12 @@ plotting_EKF_interp_joint <- function(env_obj) {
 											  max_dt_wo_obs=(env_obj$N + 1)*env_obj$reg_dt, maxStep=env_obj$N + 1,
 											  centroids=env_obj$centroids, nstates=env_obj$nstates, spline_deg=3, split_logv=-3)$d_ds
 
-			spline_estimates <- spline_estimates[t_reg_in_shark_intervals, c("X","Y"), drop=FALSE]
-						
+			spline_estimates <- as.matrix(spline_estimates[t_reg_in_shark_intervals, c("X","Y"), drop=FALSE], ncol=2, nrow=length(t_reg_in_shark_intervals))
+			rownames(spline_estimates) <- paste("N", shark_intervals_to_use + 1, sep="")			
 			spline_errors <- apply(spline_estimates - true_shark_ds[t_reg_in_shark_intervals, c("X","Y"), drop=FALSE], 1, function(x) sqrt(sum(x^2)))
 	
 			env_obj$error_euclidean_estimate_true_from_obs[shark_intervals_to_use + 1,"bezier",s] <- spline_errors
-			env_obj$euclidean_estimate_true_from_obs[shark_intervals_to_use + 1,,"bezier",s] <- spline_estimates						
-
+			env_obj$euclidean_estimate_true_from_obs[shark_intervals_to_use + 1,c("X","Y"),"bezier",s] <- spline_estimates						
 
 			#spline_distances <- apply(1:nrow(spline_estimates), function(jj) sum(dist_func(center=spline_estimates[jj, c("X","Y")], otherXY=)))		
 				
@@ -894,7 +898,7 @@ plotting_EKF_interp_joint <- function(env_obj) {
 									  
 						abline(h=trans_prob_actual[1:2,r] + runif(2, min=-0.001, max=0.001), col=1:2, lty=2)
 						#print(trans_prob_actual[1:2,r])
-						legend("topright", col=1:2, lty=1, legend=c("P(1->2)","P(2-> 1)"), lwd=1.5, cex=0.7)
+						legend("topright", col=1:2, lty=1, legend=c("Pr(1 -> 2)","Pr(2 -> 1)"), lwd=1.5, cex=0.7)
 
 					}
 			 
@@ -1194,7 +1198,7 @@ plotting_EKF_interp_joint <- function(env_obj) {
 			#P2t1
 			for (ss in env_obj$shark_names) {
 				
-				plot(p2to1_density_byregion[[ ss ]][[ 1 ]], ylab="density", xlim=c(0,1), ylim=c(0,ylim_trans),col=1, lty=2, main=paste("Density of p(2->1) by region, shark", ss), xlab="Probability", las=1)
+				plot(p2to1_density_byregion[[ ss ]][[ 1 ]], ylab="density", xlim=c(0,1), ylim=c(0,ylim_trans),col=1, lty=2, main=paste("Density of Pr(2 -> 1) by region, shark", ss), xlab="Probability", las=1)
 				
 				if (env_obj$nregions > 1) {
 					for ( r in 2:env_obj$nregions) {
@@ -1263,7 +1267,7 @@ plotting_EKF_interp_joint <- function(env_obj) {
 					}#loop over regions		
 			
 				}
-				plot(x=-1, y=-1, xlim=range(tis), ylim=c(0,1), main=paste("Time-dependent CI of regional P(1 -> 2), shark",s), xlab="Number of steps in state", ylab="Probability", las=1)
+				plot(x=-1, y=-1, xlim=range(tis), ylim=c(0,1), main=paste("Time-dependent CI of regional Pr(1 -> 2), shark",s), xlab="Number of steps in state", ylab="Probability", las=1)
 					
 				for (r in 1:env_obj$nregions) {
 					for (tt in tis) {
@@ -1574,7 +1578,7 @@ plotting_EKF_interp_joint <- function(env_obj) {
 		
 		sp::plot(env_obj$area_map, border="green", lwd=2, add=TRUE, axes=TRUE, las=0)
 		
-		if (env_obj$nregions > 1 ) { plot.deldir(vortess, wlines="tess", cex=0, add=TRUE) }
+		if (env_obj$nregions > 1 ) { deldir::plot.deldir(vortess, wlines="tess", cex=0, add=TRUE) }
 		text(env_obj$centroids[,1,drop=FALSE], env_obj$centroids[,2,drop=FALSE], labels=1:nrow(env_obj$centroids))
 
 		if (env_obj$smoothing) {
@@ -1608,7 +1612,7 @@ plotting_EKF_interp_joint <- function(env_obj) {
 		
 			sp::plot(env_obj$area_map, border="green", lwd=2, add=TRUE, axes=TRUE, las=0)
 			
-			if (env_obj$nregions > 1 ) { plot.deldir(vortess, wlines="tess", cex=0, add=TRUE) }
+			if (env_obj$nregions > 1 ) { deldir::plot.deldir(vortess, wlines="tess", cex=0, add=TRUE) }
 			text(env_obj$centroids[,1,drop=FALSE], env_obj$centroids[,2,drop=FALSE], labels=1:nrow(env_obj$centroids))
 
 		
@@ -1641,7 +1645,7 @@ plotting_EKF_interp_joint <- function(env_obj) {
 		#xspline(median_position[,"X"], median_position[,"Y"], border="black", lwd=2, shape=1)
 		
 		sp::plot(env_obj$area_map, border="green", lwd=2, add=TRUE, axes=TRUE, las=0)
-		if (env_obj$nregions > 1 ) { plot.deldir(vortess, wlines="tess", cex=0, add=TRUE) }
+		if (env_obj$nregions > 1 ) { deldir::plot.deldir(vortess, wlines="tess", cex=0, add=TRUE) }
 		text(env_obj$centroids[,1], env_obj$centroids[,2], labels=1:nrow(env_obj$centroids))
 
 		
@@ -1667,7 +1671,7 @@ plotting_EKF_interp_joint <- function(env_obj) {
 		
 			lines(Y ~ X, data=median_position, type="b", col="black", pch=19, asp=1, cex=cex_sim)
 			sp::plot(env_obj$area_map, border="green", lwd=2, add=TRUE, axes=TRUE, las=0)
-			if (env_obj$nregions > 1 ) { plot.deldir(vortess, wlines="tess", cex=0, add=TRUE) }
+			if (env_obj$nregions > 1 ) { deldir::plot.deldir(vortess, wlines="tess", cex=0, add=TRUE) }
 			text(env_obj$centroids[,1], env_obj$centroids[,2], labels=1:nrow(env_obj$centroids))
 
 	
@@ -1684,7 +1688,7 @@ plotting_EKF_interp_joint <- function(env_obj) {
 			 xlim=r1, ylim=r2, cex=.7, xlab="X", ylab="Y")
 		lines(Y ~ X, data=env_obj$XY[env_obj$tags==s,,drop=FALSE], type="b", col="red", pch=19, cex=c(2, rep(1, sum(env_obj$tags==s)-1))) 
 		sp::plot(env_obj$area_map, border="green", lwd=2, add=TRUE, axes=TRUE, las=0)
-		if (env_obj$nregions > 1 ) { plot.deldir(vortess, wlines="tess", cex=0, add=TRUE) }
+		if (env_obj$nregions > 1 ) { deldir::plot.deldir(vortess, wlines="tess", cex=0, add=TRUE) }
 		text(env_obj$centroids[,1], env_obj$centroids[,2], labels=1:nrow(env_obj$centroids))
 
 
@@ -1701,12 +1705,12 @@ plotting_EKF_interp_joint <- function(env_obj) {
 		#g <- ggplot(particle_locs, aes(x=X, y=Y)) + coord_fixed(ratio=1, xlim=ggxlim, ylim=ggylim) + theme(axis.text.x = element_text(size=14), axis.text.y = element_text(size=14))
 		#g <- g + theme_bw() + theme(panel.background = element_rect(fill="white"))		
 		
-		g <- ggplot(particle_locs, aes(x=X, y=Y)) + theme_bw() + theme(aspect.ratio=1, axis.text.x = element_text(size=14), axis.text.y = element_text(size=14))
+		g <- ggplot(particle_locs, aes_string(x="X", y="Y")) + theme_bw() + theme(aspect.ratio=1, axis.text.x = element_text(size=14), axis.text.y = element_text(size=14))
 		g <- g + theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank())
 		g <- g + ggtitle(paste("All particle positions density (red=observed locs.), shark",s))
-		g <- g + stat_density2d(aes(fill=..density..), geom="tile", contour=FALSE)
+		g <- g + stat_density2d(aes_string(fill="..density.."), geom="tile", contour=FALSE)
 		g <- g + scale_fill_gradient(low="white", high="black", na.value="white") + theme(legend.position="right")
-		g <- g + geom_path(data=make_segments(xy=env_obj$XY[env_obj$tags==s, c("X","Y"),drop=FALSE]), aes(X, Y), colour="red", lwd=1)
+		g <- g + geom_path(data=make_segments(xy=env_obj$XY[env_obj$tags==s, c("X","Y"),drop=FALSE]), aes_string(x="X", y="Y"), colour="red", lwd=1)
 		print(g)
 		rm(g)
 
@@ -1720,20 +1724,20 @@ plotting_EKF_interp_joint <- function(env_obj) {
 			 xlim=r1, ylim=r2, cex=.7, xlab="X", ylab="Y")
 			lines(Y ~ X, data=env_obj$known_regular_step_ds[true_locs_in_time_range,,drop=FALSE], type="b", col="red", pch=19, cex=c(2, rep(1, sum(env_obj$tags==s)-1))) 
 			sp::plot(env_obj$area_map, border="green", lwd=2, add=TRUE, axes=TRUE, las=0)
-			if (env_obj$nregions > 1 ) { plot.deldir(vortess, wlines="tess", cex=0, add=TRUE) }
+			if (env_obj$nregions > 1 ) { deldir::plot.deldir(vortess, wlines="tess", cex=0, add=TRUE) }
 			text(env_obj$centroids[,1], env_obj$centroids[,2], labels=1:nrow(env_obj$centroids))
 		
 			ggxlim <- par()$usr[1:2]
 			ggylim <- par()$usr[3:4]
 		
-			g <- ggplot(particle_locs, aes(x=X, y=Y)) + theme_bw() + theme(aspect.ratio=1, axis.text.x = element_text(size=14), axis.text.y = element_text(size=14))
+			g <- ggplot(particle_locs, aes_string(x="X", y="Y")) + theme_bw() + theme(aspect.ratio=1, axis.text.x = element_text(size=14), axis.text.y = element_text(size=14))
 
 			#g <- ggplot(particle_locs, aes(x=X, y=Y)) + coord_fixed(ratio=1, xlim=ggxlim, ylim=ggylim) + theme(axis.text.x = element_text(size=14), axis.text.y = element_text(size=14))
 			g <- g + theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank())
 			g <- g + ggtitle(paste("All particle positions density (red=TRUE locs.), shark",s))
-			g <- g + stat_density2d(aes(fill=..density..), geom="tile", contour=FALSE)
+			g <- g + stat_density2d(aes_string(fill="..density.."), geom="tile", contour=FALSE)
 			g <- g + scale_fill_gradient(low="white", high="black", na.value="white") + theme(legend.position="right")
-			g <- g + geom_path(data=make_segments(xy=env_obj$known_regular_step_ds[true_locs_in_time_range, c("X","Y"), drop=FALSE]), aes(X, Y), colour="red", lwd=1)
+			g <- g + geom_path(data=make_segments(xy=env_obj$known_regular_step_ds[true_locs_in_time_range, c("X","Y"), drop=FALSE]), aes_string(x="X", y="Y"), colour="red", lwd=1)
 			print(g)
 			rm(g)
 
@@ -1757,20 +1761,20 @@ plotting_EKF_interp_joint <- function(env_obj) {
 				 xlim=r1, ylim=r2, cex=.7, xlab="X", ylab="Y")
 			lines(Y ~ X, data=env_obj$XY[env_obj$tags==s,,drop=FALSE], type="b", col="red", pch=19, cex=c(2, rep(1, sum(env_obj$tags==s)-1))) 
 			sp::plot(env_obj$area_map, border="green", lwd=2, add=TRUE, axes=TRUE, las=0)
-			if (env_obj$nregions > 1 ) { plot.deldir(vortess, wlines="tess", cex=0, add=TRUE) }
+			if (env_obj$nregions > 1 ) { deldir::plot.deldir(vortess, wlines="tess", cex=0, add=TRUE) }
 			text(env_obj$centroids[,1], env_obj$centroids[,2], labels=1:nrow(env_obj$centroids))	
 		
 			ggxlim <- par()$usr[1:2]
 			ggylim <- par()$usr[3:4]
 		
-			g <- ggplot(particle_locs_smoothed, aes(x=X, y=Y)) + theme_bw() + theme(aspect.ratio=1, axis.text.x = element_text(size=14), axis.text.y = element_text(size=14))
+			g <- ggplot(particle_locs_smoothed, aes_string(x="X", y="Y")) + theme_bw() + theme(aspect.ratio=1, axis.text.x = element_text(size=14), axis.text.y = element_text(size=14))
 
 			#g <- ggplot(particle_locs_smoothed, aes(x=X, y=Y)) + coord_fixed(ratio=1, xlim=ggxlim, ylim=ggylim) + theme(axis.text.x = element_text(size=14), axis.text.y = element_text(size=14))
 			g <- g + theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank())
 			g <- g + ggtitle(paste("All particle positions density (smoothed, red=observed locs.), shark",s))
-			g <- g + stat_density2d(aes(fill=..density..), geom="tile", contour=FALSE)
+			g <- g + stat_density2d(aes_string(fill="..density.."), geom="tile", contour=FALSE)
 			g <- g + scale_fill_gradient(low="white", high="black", na.value="white") + theme(legend.position="right")
-			g <- g + geom_path(data=make_segments(xy=env_obj$XY[env_obj$tags==s, c("X","Y"),drop=FALSE]), aes(X, Y), colour="red", lwd=1)
+			g <- g + geom_path(data=make_segments(xy=env_obj$XY[env_obj$tags==s, c("X","Y"),drop=FALSE]), aes_string(x="X", y="Y"), colour="red", lwd=1)
 			print(g)
 			rm(g)
 
@@ -1782,7 +1786,7 @@ plotting_EKF_interp_joint <- function(env_obj) {
 				 xlim=r1, ylim=r2, cex=.7, xlab="X", ylab="Y")
 				lines(Y ~ X, data=env_obj$known_regular_step_ds[true_locs_in_time_range,,drop=FALSE], type="b", col="red", pch=19, cex=c(2, rep(1, sum(env_obj$tags==s)-1))) 
 				sp::plot(env_obj$area_map, border="green", lwd=2, add=TRUE, axes=TRUE, las=0)
-				if (env_obj$nregions > 1 ) { plot.deldir(vortess, wlines="tess", cex=0, add=TRUE) }
+				if (env_obj$nregions > 1 ) { deldir::plot.deldir(vortess, wlines="tess", cex=0, add=TRUE) }
 				text(env_obj$centroids[,1], env_obj$centroids[,2], labels=1:nrow(env_obj$centroids))
 			
 				ggxlim <- par()$usr[1:2]
@@ -1791,13 +1795,13 @@ plotting_EKF_interp_joint <- function(env_obj) {
 
 				#g <- ggplot(particle_locs_smoothed, aes(x=X, y=Y)) + coord_fixed(ratio=1, xlim=ggxlim, ylim=ggylim) + theme(axis.text.x = element_text(size=14), axis.text.y = element_text(size=14))
 				#g <- g + theme_bw() + theme(panel.background = element_rect(fill="white"))
-				g <- ggplot(particle_locs_smoothed, aes(x=X, y=Y)) + theme_bw() + theme(aspect.ratio=1, axis.text.x = element_text(size=14), axis.text.y = element_text(size=14))
+				g <- ggplot(particle_locs_smoothed, aes_string(x="X", y="Y")) + theme_bw() + theme(aspect.ratio=1, axis.text.x = element_text(size=14), axis.text.y = element_text(size=14))
 				g <- g + theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank())
 
 				g <- g + ggtitle(paste("All particle positions density (smoothed, red=TRUE locs.), shark",s))
-				g <- g + stat_density2d(aes(fill=..density..), geom="tile", contour=FALSE)
+				g <- g + stat_density2d(aes_string(fill="..density.."), geom="tile", contour=FALSE)
 				g <- g + scale_fill_gradient(low="white", high="black", na.value="white") + theme(legend.position="right")
-				g <- g + geom_path(data=make_segments(xy=env_obj$known_regular_step_ds[true_locs_in_time_range, c("X","Y"), drop=FALSE]), aes(X, Y), colour="red", lwd=1)
+				g <- g + geom_path(data=make_segments(xy=env_obj$known_regular_step_ds[true_locs_in_time_range, c("X","Y"), drop=FALSE]), aes_string(x="X", y="Y"), colour="red", lwd=1)
 				print(g)
 				rm(g)
 

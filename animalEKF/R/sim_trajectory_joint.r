@@ -239,7 +239,7 @@ interp_trajectory_joint <- function(d, nstates, one_d, dt_lnorm_mu=5, dt_lnorm_s
 			
 
 			if (one_d == FALSE) { 
-				di[shark_tags==s, "logvelocity"] <- log_safe(di[shark_tags==s, "speed"]) 
+				di[shark_tags==s, "log_speed"] <- log_safe(di[shark_tags==s, "speed"]) 
 			
 				#turn angles use atan2
 				di[,"bearing.to.east.tonext.rad"] <- atan2(y=di[,"dy_to_next"], x=di[,"dx_to_next"])
@@ -559,7 +559,9 @@ sim_trajectory_joint <- function(area_map, centroids=matrix(c(0,0), ncol=2),
 					d[tt+1, c("X","Y"), s] <- d[tt, c("X","Y"), s] + d[tt, "speed", s]*d[tt, "time_to_next", s]*c(cos(d[tt, "bearing.to.east.tonext.rad", s]), sin(d[tt, "bearing.to.east.tonext.rad", s]))
 						
 					new_traj <- sp::SpatialLines(list(sp::Lines(sp::Line(d[tt:(tt+1), c("X","Y"), s]), ID=1)))
-					inside <- rgeos::gContains(area_map, new_traj)
+					new_traj@proj4string <- area_map@proj4string 
+
+					inside <- rgeos::gContains(area_map, new_traj, byid=FALSE)
 					if (nregions>1) { d[tt+1, "region", s] <- which_region(d[tt+1, c("X","Y"), s], centroids) }
 						
 				}
