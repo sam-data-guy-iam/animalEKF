@@ -463,6 +463,7 @@ plotting_EKF_interp_joint <- function(env_obj) {
 					
 				nearby_obs_indices <- c(max(which(d_of_shark$date_as_sec <= env_obj$t_reg[i+1])), min(which(d_of_shark$date_as_sec >= env_obj$t_reg[i+1])))
 					
+				#here is the problem: if d_of_shark is a data frame
 				obs_xy <- d_of_shark[nearby_obs_indices, c("X","Y"), drop=FALSE]
 				obs_dxy <- apply(obs_xy, 2, diff)
 				obs_dist <- sqrt(sum(obs_dxy^2))
@@ -470,7 +471,7 @@ plotting_EKF_interp_joint <- function(env_obj) {
 				obs_timediff <- diff(d_of_shark$date_as_sec[nearby_obs_indices])
 				
 				if (obs_timediff == 0) {
-					euc_pred <- obs_xy[1,]
+					euc_pred <- as.matrix(obs_xy[1,])
 				}
 				else {
 					euc_pred <- env_obj$h(mk=c(obs_xy[1,], log_safe(obs_dist/obs_timediff), obs_bear), dtprev=(env_obj$t_reg[i+1] - d_of_shark$date_as_sec[nearby_obs_indices[1]]))
@@ -479,7 +480,8 @@ plotting_EKF_interp_joint <- function(env_obj) {
 				colnames(euc_pred) <- c("X", "Y")
 				rownames(euc_pred) <- paste("N", i+1, sep="")
 				
-				env_obj$euclidean_estimate_true_from_obs[i+1,,"euclidean",s] <- euc_pred						
+		
+				env_obj$euclidean_estimate_true_from_obs[i+1,c("X","Y"),"euclidean",s] <- euc_pred						
 				env_obj$error_euclidean_estimate_true_from_obs[i+1,"euclidean",s] <- sum(dist_func(center=euc_pred, otherXY=obs))
 
 			}#loop over i
@@ -488,8 +490,8 @@ plotting_EKF_interp_joint <- function(env_obj) {
 	
 			
 			spline_estimates <- spline_interp(di=d_of_shark, area_map=env_obj$area_map, t_reg=true_shark_ds$date_as_sec,
-											  max_dt_wo_obs=(env_obj$N + 1)*env_obj$reg_dt, maxStep=env_obj$N + 1,
-											  centroids=env_obj$centroids, nstates=env_obj$nstates, spline_deg=3, split_logv=-3)$d_ds
+			                                  max_dt_wo_obs=(env_obj$N + 1)*env_obj$reg_dt, maxStep=env_obj$N + 1,
+			                                  centroids=env_obj$centroids, nstates=env_obj$nstates, spline_deg=3, split_logv=-3)$d_ds
 
 			spline_estimates <- as.matrix(spline_estimates[t_reg_in_shark_intervals, c("X","Y"), drop=FALSE], ncol=2, nrow=length(t_reg_in_shark_intervals))
 			rownames(spline_estimates) <- paste("N", shark_intervals_to_use + 1, sep="")			

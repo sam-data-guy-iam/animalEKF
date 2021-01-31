@@ -3,7 +3,6 @@ interp_trajectory_joint <- function(d, nstates, one_d, dt_lnorm_mu=5, dt_lnorm_s
 		ndim <- length(dim(d))
 		
 		speed_varname <- ifelse(one_d, "velocity", "speed")
-		
 		#multiple sharks
 		if (ndim==3) {
 			shark_names <- dimnames(d)[[ 3 ]] 
@@ -14,12 +13,10 @@ interp_trajectory_joint <- function(d, nstates, one_d, dt_lnorm_mu=5, dt_lnorm_s
 			time_range <- range(d[,"date_as_sec"], na.rm=TRUE)
 		}	
 		
-		#print(shark_names)
 		nsharks <- length(shark_names)
-		
 		N <- dim(d)[ 1 ]-1
 		if (is.null(one_d)) { one_d <- ("Y" %in% dimnames(d)[[ 2 ]]) }
-	
+
 		#if (! ("t_intervals" %in% colnames(d))) {  t_intervals <- rep(NA, nrow(d)) ;  d <- cbind(d, t_intervals=t_intervals) }
 		#if (! ("region" %in% colnames(d))) {  region <- rep(NA, nrow(d)) ;  d <- cbind(d, region=region) }
 		
@@ -32,7 +29,6 @@ interp_trajectory_joint <- function(d, nstates, one_d, dt_lnorm_mu=5, dt_lnorm_s
 		#if interpolate to regular
 		
 		#if use fixed values
-		
 		adjust_dt_vec_to_span <- function(dtv, time_span) {
 
 			# extend if necessary to cover the time span		
@@ -57,7 +53,7 @@ interp_trajectory_joint <- function(d, nstates, one_d, dt_lnorm_mu=5, dt_lnorm_s
 	
 		if (! is.null(dt_vals))  {
 
-			dt_vals <- adjust_dt_vec_to_span(dtv=dt_vals, time_span=time_span)
+		  dt_vals <- adjust_dt_vec_to_span(dtv=dt_vals, time_span=time_span)
 			
 			print("interpolating with given time gaps:")
 			print(dt_vals)
@@ -75,8 +71,8 @@ interp_trajectory_joint <- function(d, nstates, one_d, dt_lnorm_mu=5, dt_lnorm_s
 			
 		}	
 		else if (dt_lnorm_sd==0) {
-		
-			emu <- round(exp_safe(dt_lnorm_mu), digits=5)
+
+		  emu <- round(exp_safe(dt_lnorm_mu), digits=5)
 			print(paste("interpolating with regular timestep approx", round(emu, digits=1)))
 			
 			t2next <- adjust_dt_vec_to_span(dtv=emu, time_span=time_span)
@@ -84,6 +80,8 @@ interp_trajectory_joint <- function(d, nstates, one_d, dt_lnorm_mu=5, dt_lnorm_s
 			#dont add 1 so doesn't go above right interval
 			t2next <- rep(emu, ceiling(time_span/emu ))
 			t_obs <- time_range[1] + cumsum(c(0,t2next))
+			t_obs <- rep(list(t_obs), nsharks)
+
 			t2next <- rep(list(c(dt_vals,5)), nsharks)
 			names(t2next) <- names(t_obs) <- shark_names
 			#t_obs <- t_obs[ -length(t_obs) ]
@@ -93,8 +91,8 @@ interp_trajectory_joint <- function(d, nstates, one_d, dt_lnorm_mu=5, dt_lnorm_s
 			
 		}
 		else {
-		
-			#if interpolate to irregular
+
+		  #if interpolate to irregular
 			t2next <- rep(list(c()), nsharks)
 			t_obs <- rep(list(time_range[1]), nsharks)
 			names(t2next) <- names(t_obs) <- shark_names
@@ -136,12 +134,11 @@ interp_trajectory_joint <- function(d, nstates, one_d, dt_lnorm_mu=5, dt_lnorm_s
 		#dont interpolate to regular
 		
 		di[,"t_intervals"] <- as.numeric(as.character(cut(x=di[,"date_as_sec"], breaks=c(d[1,"date_as_sec", 1]-100, d[-1,"date_as_sec", 1]), labels=1:(N), right=TRUE)))  
-		
-		
+
 		#set the states the same as the intervals they fall in 
 		for (s in shark_names) {
-			
-			st <- di[shark_tags==s,"t_intervals"] #irregular intervals, select those rows from regular dataset
+		
+		  st <- di[shark_tags==s,"t_intervals"] #irregular intervals, select those rows from regular dataset
 			di[shark_tags==s, "state.guess2"] <- as.numeric(d[ st, "state.guess2", s])
 			
 			
@@ -160,17 +157,16 @@ interp_trajectory_joint <- function(d, nstates, one_d, dt_lnorm_mu=5, dt_lnorm_s
 			else { sv <- c("speed", "log_speed") }
 			
 			di[shark_tags==s, sv] <- as.matrix(d[ di[shark_tags==s, "t_intervals"], sv, s])
-				
+
 			t_intervals <- unique(di[ shark_tags==s, "t_intervals" ])
 			t_intervals <- t_intervals[ ! is.na(t_intervals) ]
 			#if (is.null(reg_dt)) {	t_intervals <- 	t_intervals[ t_intervals < N+1 ] }
-	
-			for (tt in t_intervals) {
 			
+			for (tt in t_intervals) {
 				#if (is.null(reg_dt)) { delta_t <- diff(d[c(tt,tt+1), "date_as_sec", s]) }
 				#else { delta_t <- reg_dt }
-			
-				isteps <- which(di[,"t_intervals"] == tt & shark_tags==s)
+
+			  isteps <- which(di[,"t_intervals"] == tt & shark_tags==s)
 				
 				#fractions
 				j <- as.vector((di[isteps,"date_as_sec"] - d[tt,"date_as_sec", s])/diff(d[c(tt,tt+1), "date_as_sec", s]))
@@ -202,8 +198,7 @@ interp_trajectory_joint <- function(d, nstates, one_d, dt_lnorm_mu=5, dt_lnorm_s
 				}
 			
 			}#loop over intervals
-			
-		
+
 			di[ which(shark_tags==s)[ -shark_nobs_di[ s ]], "dx_to_next"] <- di[which(shark_tags==s)[ -1 ], "X"] - di[which(shark_tags==s)[ -shark_nobs_di[ s ]], "X"]
 			
 			shark_obs <- which(shark_tags==s)
@@ -216,8 +211,7 @@ interp_trajectory_joint <- function(d, nstates, one_d, dt_lnorm_mu=5, dt_lnorm_s
 			if (one_d ==FALSE) {
 				di[which(shark_tags==s)[ -shark_nobs_di[ s ]], "dy_to_next"] <- di[which(shark_tags==s)[ -1 ], "Y"] - di[which(shark_tags==s)[ -shark_nobs_di[ s ]], "Y"]
 			}
-			
-			
+
 			#di <- di[ -nrow(di),]
 			
 			if (one_d ==FALSE) {
@@ -232,12 +226,10 @@ interp_trajectory_joint <- function(d, nstates, one_d, dt_lnorm_mu=5, dt_lnorm_s
 						
 			#print(di[,"time_to_next"])
 			di[shark_tags==s, speed_varname] <- d_to_next/di[shark_tags==s, "time_to_next"]
-			
-			
+
 			
 			#di[ st[ -length(st) ] , "next.guess2"] <- di[ st[ -1 ], "state.guess2"]
 			
-
 			if (one_d == FALSE) { 
 				di[shark_tags==s, "log_speed"] <- log_safe(di[shark_tags==s, "speed"]) 
 			
@@ -253,12 +245,10 @@ interp_trajectory_joint <- function(d, nstates, one_d, dt_lnorm_mu=5, dt_lnorm_s
 				}
 			}
 		
-			
 			#if want to get rid of interpolation points 
 				
 			
 		}#loop over sharks
-				
 		di[,"lambda"] <- as.numeric(di[,"state.guess2"])-1
 		
 		di <- as.data.frame(di)
@@ -266,7 +256,6 @@ interp_trajectory_joint <- function(d, nstates, one_d, dt_lnorm_mu=5, dt_lnorm_s
 		di$tag <- shark_tags
 		di$next.guess2 <- factor(di$next.guess2, levels=1:nstates)
 		di$state.guess2 <- factor(di$state.guess2, levels=1:nstates)
-		
 		invisible(di)
 
 		
