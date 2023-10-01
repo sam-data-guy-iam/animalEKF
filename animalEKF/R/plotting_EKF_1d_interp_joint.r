@@ -949,7 +949,7 @@ plotting_EKF_1d_interp_joint <- function(env_obj) {
 				legend("bottomleft",  col=1:env_obj$nsharks, lwd=1.5, legend=env_obj$shark_names, bg="white", lty = (1:env_obj$nsharks)%%3 + 1)
 			}
 			
-			if( any(! is.na(env_obj$spatial_interact_intensity_history))) {
+			if ( any(! is.na(env_obj$spatial_interact_intensity_history))) {
 				matplot(env_obj$spatial_interact_intensity_history[,1,], type="b", lwd=1.5, pch=19, cex=0.4, col=1:env_obj$nsharks, lty = (1:env_obj$nsharks)%%3 + 1, main="Median historical interaction value (simulated over all neighborhood proportions)",  ylab="interaction value")
 				legend("bottomleft",  col=1:env_obj$nsharks, lwd=1.5, legend=env_obj$shark_names, bg="white", lty = (1:env_obj$nsharks)%%3 + 1)
 				

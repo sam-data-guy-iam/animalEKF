@@ -208,13 +208,13 @@ interp_trajectory_joint <- function(d, nstates, one_d, dt_lnorm_mu=5, dt_lnorm_s
 			}
 		
 		
-			if (one_d ==FALSE) {
+			if (! one_d) {
 				di[which(shark_tags==s)[ -shark_nobs_di[ s ]], "dy_to_next"] <- di[which(shark_tags==s)[ -1 ], "Y"] - di[which(shark_tags==s)[ -shark_nobs_di[ s ]], "Y"]
 			}
 
 			#di <- di[ -nrow(di),]
 			
-			if (one_d ==FALSE) {
+			if (! one_d) {
 				# d_to_next will be Euclidean distance, which must be positive
 				d_to_next <- as.numeric(apply(di[ shark_tags==s,c("dx_to_next","dy_to_next")], 1, function(x) sqrt(sum(x^2))))
 			}
@@ -256,13 +256,18 @@ interp_trajectory_joint <- function(d, nstates, one_d, dt_lnorm_mu=5, dt_lnorm_s
 		di$tag <- shark_tags
 		di$next.guess2 <- factor(di$next.guess2, levels=1:nstates)
 		di$state.guess2 <- factor(di$state.guess2, levels=1:nstates)
+		
+		# sort by time and then shark names
+		di <- di[order( di$date_as_sec, di$tag ),]
+
+		
 		invisible(di)
 
 		
 }		
 
 
-sim_trajectory_joint <- function(area_map, centroids=matrix(c(0,0), ncol=2), 
+sim_trajectory_joint <- function(area_map=NULL, centroids=matrix(c(0,0), ncol=2), 
                            transition_matrices=list(matrix(c(10,3,2,9), ncol=2, byrow=TRUE)),
                            mu0_pars=list(alpha=c(-4 ,-1.6), beta=c(0,0)), var0_pars=list(alpha=c(1.6,0.16), beta=c(2,.5)), 
 						   N=100, nstates=2, reg_dt=120, gen_irreg=TRUE, one_d=FALSE, dt_lnorm_mu=log(120), dt_lnorm_sd=1,
@@ -271,7 +276,7 @@ sim_trajectory_joint <- function(area_map, centroids=matrix(c(0,0), ncol=2),
 						   eta_mu=c(2,1), rho_sd=c(0.75, 0.75)), time_dep_trans=FALSE, trans_alpha=c(1, 1.5)) {
 
 
-							
+								
 						   
 						   
 	nstates <- max(1, nstates)
@@ -280,7 +285,42 @@ sim_trajectory_joint <- function(area_map, centroids=matrix(c(0,0), ncol=2),
 	if (nstates==1 & ! is.null(transition_matrices)) { 
 	   print("Only simulating with one behavioral state")
 	}
+	
+	if (! one_d) {
+	
+		# first check if a map exists
+		if (is.null(area_map)) {
+			if (is.null(starting_polygon)) {
+				# create a default shapefile
+				print("creating a default rectangular shapefile within which to simulate")
+				area_map <- sf::st_geometry(rectangular_shapefile())
+				starting_polygon <- area_map
+			}
+			else {
+				print("Using the provided starting_polygon as area_map")
+				area_map <- starting_polygon
+			}
+			
+		}
+		
+	
+		# only if 2-D
+		if (all(sf::st_is_empty(area_map))) {
+			stop('area_map geometry is empty')
+		}
 
+		if (all(sf::st_is_empty(starting_polygon))) {
+			stop('starting_polygon geometry is empty')
+		}
+		
+		if (! any(binary_A_intersects_B(sf::st_geometry(starting_polygon), sf::st_geometry(area_map)))) {
+			stop('starting polygon does not intersect with area_map')
+		}
+		else {
+			# make sure is in map
+			starting_polygon <- sf::st_intersection(sf::st_geometry(area_map), sf::st_geometry(starting_polygon))
+		}
+	}
 
 	normalize_angle <- function(theta) {
 	  #needed otherwise total lack of accuracy in modulus
@@ -415,13 +455,13 @@ sim_trajectory_joint <- function(area_map, centroids=matrix(c(0,0), ncol=2),
 	if (nstates>1) { d[1,"state.guess2",] <- sample(1:nstates, size=nsharks, replace=TRUE) }
 	else { d[,"state.guess2",] <- 1 }
     
-	if (one_d==FALSE) { 
+	if (! one_d) { 
 	
 		#may want to select a smaller area within which to find the initial points
-		starting_polygon <- rgeos::gIntersection(area_map, starting_polygon)
-		if (rgeos::gIsEmpty(starting_polygon)) { starting_polygon <- area_map }
+		# starting_polygon <- rgeos::gIntersection(area_map, starting_polygon)
+		
 		for (s in shark_names) {		
-			d[1,c("X","Y"),s] <- as.vector(sp::coordinates(sp::spsample(x=starting_polygon, n=1, type="regular")[1,]))
+			d[1,c("X","Y"),s] <- as.vector(sf::st_coordinates(sf::st_sample(starting_polygon, size=1, type="random", exact=TRUE))[1,])
 		}	
 		d[1,"bearing.to.east.tonext.rad",] <- runif(n=nsharks, min=-pi+ 1e-3, max=pi- 1e-3)
 		
@@ -528,11 +568,11 @@ sim_trajectory_joint <- function(area_map, centroids=matrix(c(0,0), ncol=2),
 			
 			inside <- FALSE
 						
-			while (inside ==FALSE) { 
+			while (! inside) { 
 			
 				d[tt,speed_varname, s] <- rnorm(n=1, mean=mu0_pars$alpha[ z ], sd=sqrt(var0_pars$alpha[ z ]))
 				
-				if (one_d==FALSE) {	
+				if (! one_d) {	
 					
 					d[tt,"speed", s] <- exp_safe(d[tt,speed_varname, s])
 				
@@ -547,10 +587,12 @@ sim_trajectory_joint <- function(area_map, centroids=matrix(c(0,0), ncol=2),
 					#new coordinate
 					d[tt+1, c("X","Y"), s] <- d[tt, c("X","Y"), s] + d[tt, "speed", s]*d[tt, "time_to_next", s]*c(cos(d[tt, "bearing.to.east.tonext.rad", s]), sin(d[tt, "bearing.to.east.tonext.rad", s]))
 						
-					new_traj <- sp::SpatialLines(list(sp::Lines(sp::Line(d[tt:(tt+1), c("X","Y"), s]), ID=1)))
-					new_traj@proj4string <- area_map@proj4string 
-
-					inside <- rgeos::gContains(area_map, new_traj, byid=FALSE)
+					# new_traj <- sp::SpatialLines(list(sp::Lines(sp::Line(d[tt:(tt+1), c("X","Y"), s]), ID=1)))
+					# new_traj@proj4string <- area_map@proj4string 
+					new_traj <- sf::st_linestring(d[tt:(tt+1), c("X","Y"), s])
+					# inside <- rgeos::gContains(area_map, new_traj, byid=FALSE)
+					inside <- binary_A_within_B(new_traj, area_map)
+					
 					if (nregions>1) { d[tt+1, "region", s] <- which_region(d[tt+1, c("X","Y"), s], centroids) }
 						
 				}
